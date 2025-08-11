@@ -211,6 +211,7 @@ export default function Home() {
                 }
                 warn={!serverKpis}
               />
+              <GuardrailsTile apiBase={apiBase} />
             </div>
           </div>
           <div className="rounded-lg border bg-white p-4">
@@ -377,4 +378,25 @@ function ApiHealthTile({ apiBase }: { apiBase: string }) {
     };
   }, [apiBase]);
   return <Tile label="API" value={status} />;
+}
+
+function GuardrailsTile({ apiBase }: { apiBase: string }) {
+  const [cfg, setCfg] = useState<{
+    max_cost_per_batch_usd: number;
+    max_concurrency: number;
+  } | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/settings/guardrails`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setCfg(data);
+      } catch {}
+    })();
+  }, [apiBase]);
+  const value = cfg
+    ? `${cfg.max_concurrency} | $${cfg.max_cost_per_batch_usd.toFixed(2)}`
+    : "--";
+  return <Tile label="Guardrails (conc | max$)" value={value} />;
 }

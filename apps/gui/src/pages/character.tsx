@@ -28,6 +28,23 @@ export default function CharacterPage() {
   const [uploaded, setUploaded] = useState<UploadedRef[]>([]);
   const [styleInput, setStyleInput] = useState<string>("");
   const [maskInput, setMaskInput] = useState<string>("");
+  const [seedLocked, setSeedLocked] = useState<boolean>(false);
+  const [testPrompts, setTestPrompts] = useState<string[]>([
+    "mascot at a standing desk, soft key light",
+    "mascot in startup office, confident expression",
+    "mascot close-up, clean typography background",
+  ]);
+  const [testAspect, setTestAspect] = useState<string>("9:16");
+  const [testSpeed, setTestSpeed] = useState<string>("Default");
+  const [testResults, setTestResults] = useState<
+    Array<{
+      prompt: string;
+      output?: string;
+      seed?: number | null;
+      model_version?: string;
+      status: string;
+    }>
+  >([]);
   const validate = useMemo(
     () => ajv.compile(characterProfileSchema as any),
     [],
@@ -150,6 +167,64 @@ export default function CharacterPage() {
     }
   }
 
+  async function runStabilityTest() {
+    if (!referenceImages.length) {
+      show({ title: "Upload at least one reference image", variant: "error" });
+      return;
+    }
+    const ref = referenceImages[0];
+    const prompts = testPrompts.filter((p) => p.trim());
+    if (!prompts.length) return;
+    setTestResults(prompts.map((p) => ({ prompt: p, status: "queued" })));
+    const calls = prompts.map(async (p, idx) => {
+      const scene = {
+        scene_id: `stability_${idx + 1}`,
+        duration_s: 1.0,
+        composition: "stability_test",
+        props: [],
+        overlays: [],
+        model: "ideogram-character",
+        model_inputs: {
+          prompt: p,
+          character_reference_image: ref,
+          aspect_ratio: testAspect,
+          rendering_speed: testSpeed,
+        },
+      } as any;
+      try {
+        const res = await fetch(`${apiBase}/scenes/render`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scene }),
+        });
+        const data = await res.json();
+        const output = Array.isArray(data?.output)
+          ? data.output.find((u: any) => typeof u === "string")
+          : typeof data?.output === "string"
+            ? data.output
+            : undefined;
+        setTestResults((prev) =>
+          prev.map((r, i) =>
+            i === idx
+              ? {
+                  ...r,
+                  status: res.ok ? "succeeded" : "failed",
+                  output,
+                  seed: typeof data?.seed === "number" ? data.seed : null,
+                  model_version: data?.model_version,
+                }
+              : r,
+          ),
+        );
+      } catch (e) {
+        setTestResults((prev) =>
+          prev.map((r, i) => (i === idx ? { ...r, status: "failed" } : r)),
+        );
+      }
+    });
+    await Promise.allSettled(calls);
+  }
+
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
@@ -219,6 +294,15 @@ export default function CharacterPage() {
                 placeholder="studio key light, clean typography"
               />
             </label>
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="rounded border"
+                checked={seedLocked}
+                onChange={(e) => setSeedLocked(e.target.checked)}
+              />
+              <span className="text-gray-700">Lock seed for approved look</span>
+            </label>
             <label className="block text-sm">
               <span className="text-gray-700">
                 Mask rules (comma-separated)
@@ -239,6 +323,19 @@ export default function CharacterPage() {
                 Submit Profile
               </button>
             </div>
+            <div className="pt-2 border-t mt-2">
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="rounded border"
+                  checked={seedLocked}
+                  onChange={(e) => setSeedLocked(e.target.checked)}
+                />
+                <span className="text-gray-700">
+                  Lock seed for approved look (local)
+                </span>
+              </label>
+            </div>
           </div>
           <div className="flex flex-col">
             <div className="text-sm font-medium">Validation</div>
@@ -254,6 +351,101 @@ export default function CharacterPage() {
                   ))}
                 </ul>
               )}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded border bg-white p-4 space-y-3">
+          <div className="text-sm font-medium">Stability test</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              {testPrompts.map((p, i) => (
+                <label key={i} className="block text-sm">
+                  <span className="text-gray-700">Prompt {i + 1}</span>
+                  <input
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    value={p}
+                    onChange={(e) =>
+                      setTestPrompts((prev) =>
+                        prev.map((v, idx) => (idx === i ? e.target.value : v)),
+                      )
+                    }
+                  />
+                </label>
+              ))}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-sm">
+                  <span className="text-gray-700">Aspect ratio</span>
+                  <select
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    value={testAspect}
+                    onChange={(e) => setTestAspect(e.target.value)}
+                  >
+                    <option value="9:16">9:16</option>
+                    <option value="1:1">1:1</option>
+                    <option value="16:9">16:9</option>
+                  </select>
+                </label>
+                <label className="text-sm">
+                  <span className="text-gray-700">Rendering speed</span>
+                  <select
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    value={testSpeed}
+                    onChange={(e) => setTestSpeed(e.target.value)}
+                  >
+                    <option>Default</option>
+                    <option>Turbo</option>
+                  </select>
+                </label>
+              </div>
+              <button
+                onClick={runStabilityTest}
+                className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
+              >
+                Run test
+              </button>
+            </div>
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {testResults.map((r, i) => (
+                  <div key={i} className="rounded border p-2 text-xs space-y-1">
+                    <div className="font-medium">{r.status}</div>
+                    <div className="text-gray-700 truncate" title={r.prompt}>
+                      {r.prompt}
+                    </div>
+                    {r.output && /\.png|\.jpg|\.jpeg|\.gif/i.test(r.output) && (
+                      <img
+                        src={r.output}
+                        alt="out"
+                        className="w-full h-40 object-contain rounded border"
+                      />
+                    )}
+                    {typeof r.seed === "number" && (
+                      <div>
+                        seed:{" "}
+                        <span className="font-mono">{String(r.seed)}</span>
+                      </div>
+                    )}
+                    {r.model_version && (
+                      <div>
+                        version:{" "}
+                        <span className="font-mono">{r.model_version}</span>
+                      </div>
+                    )}
+                    {r.output && (
+                      <button
+                        className="rounded border px-2 py-1 text-xs"
+                        onClick={() => setSeedLocked(true)}
+                      >
+                        Lock seed
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {testResults.length === 0 && (
+                  <div className="text-gray-600">No results yet</div>
+                )}
+              </div>
             </div>
           </div>
         </section>

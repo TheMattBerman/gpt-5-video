@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "../components/Toast";
 
 type Job = {
   id: string;
@@ -18,6 +19,7 @@ export default function RendersPage() {
     () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
     [],
   );
+  const { show } = useToast();
   const [items, setItems] = useState<Job[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [tick, setTick] = useState<number>(0);
@@ -153,6 +155,82 @@ export default function RendersPage() {
                       </div>
                     </div>
                   )}
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      className="rounded border px-2 py-1 text-xs"
+                      onClick={async () => {
+                        try {
+                          await fetch(`${apiBase}/jobs/${j.id}/decision`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ decision: "approved" }),
+                          });
+                          show({ title: "Approved", variant: "success" });
+                        } catch {
+                          show({ title: "Approve failed", variant: "error" });
+                        }
+                      }}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="rounded border px-2 py-1 text-xs"
+                      onClick={async () => {
+                        const note = prompt("Reason?") || "";
+                        try {
+                          await fetch(`${apiBase}/jobs/${j.id}/decision`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              decision: "rejected",
+                              note,
+                            }),
+                          });
+                          show({ title: "Rejected", variant: "success" });
+                        } catch {
+                          show({ title: "Reject failed", variant: "error" });
+                        }
+                      }}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      className="rounded border px-2 py-1 text-xs"
+                      onClick={async () => {
+                        try {
+                          const payload = await promptRerunPayload(j);
+                          if (!payload) return;
+                          const res = await fetch(
+                            `${apiBase}/jobs/${j.id}/rerun`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ payload }),
+                            },
+                          );
+                          const data = await res.json();
+                          if (res.ok)
+                            show({ title: "Rerun queued", variant: "success" });
+                          else
+                            show({
+                              title: "Rerun failed",
+                              description: String(
+                                data?.error || res.statusText,
+                              ),
+                              variant: "error",
+                            });
+                        } catch (e: any) {
+                          show({
+                            title: "Rerun failed",
+                            description: String(e?.message || e),
+                            variant: "error",
+                          });
+                        }
+                      }}
+                    >
+                      Re-run
+                    </button>
+                  </div>
                 </div>
               ))}
               {items.length === 0 && (
@@ -164,4 +242,24 @@ export default function RendersPage() {
       </div>
     </main>
   );
+}
+
+function promptRerunPayload(job: Job): Promise<any | null> {
+  return new Promise((resolve) => {
+    const hint =
+      job.type === "scene_render"
+        ? "scene spec JSON"
+        : job.type === "video_assemble"
+          ? "video manifest JSON"
+          : "payload JSON";
+    const input = prompt(`Paste ${hint} to rerun:`) || "";
+    if (!input.trim()) return resolve(null);
+    try {
+      const parsed = JSON.parse(input);
+      resolve(parsed);
+    } catch (e) {
+      alert("Invalid JSON");
+      resolve(null);
+    }
+  });
 }

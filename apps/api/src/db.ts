@@ -15,6 +15,9 @@ export async function ensureTables() {
       model_version text,
       run_id text,
       seed bigint,
+      job_meta jsonb,
+      decision text,
+      decision_note text,
       started_at timestamptz,
       completed_at timestamptz,
       duration_ms integer,
@@ -27,6 +30,11 @@ export async function ensureTables() {
   );
   // Backfill column if schema existed before
   await pool.query(`alter table jobs add column if not exists error text;`);
+  await pool.query(`alter table jobs add column if not exists job_meta jsonb;`);
+  await pool.query(`alter table jobs add column if not exists decision text;`);
+  await pool.query(
+    `alter table jobs add column if not exists decision_note text;`,
+  );
   await pool.query(`
     create table if not exists artifacts (
       id bigserial primary key,

@@ -17,6 +17,8 @@ export default function HooksPage() {
       preview_url?: string;
     }>
   >([]);
+  const [corpus, setCorpus] = useState<any[]>([]);
+  const [synth, setSynth] = useState<any[]>([]);
   const [sources, setSources] = useState<
     Array<{
       platform: "tiktok" | "instagram" | "youtube";
@@ -321,6 +323,32 @@ export default function HooksPage() {
               </tbody>
             </table>
           </div>
+          {!!corpus.length && (
+            <div className="mt-3">
+              <div className="text-sm font-medium mb-1">Corpus (sample)</div>
+              <ul className="list-disc pl-4 text-xs">
+                {corpus.slice(0, 5).map((c, i) => (
+                  <li key={i} className="truncate">
+                    {c.url || c.caption || JSON.stringify(c)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!!synth.length && (
+            <div className="mt-3">
+              <div className="text-sm font-medium mb-1">
+                Synthesized hooks (sample)
+              </div>
+              <ul className="list-disc pl-4 text-xs">
+                {synth.slice(0, 5).map((h, i) => (
+                  <li key={i} className="truncate">
+                    {h.hook_text || JSON.stringify(h)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
         <section className="rounded border bg-white p-4 grid grid-cols-2 gap-4">
           <div>

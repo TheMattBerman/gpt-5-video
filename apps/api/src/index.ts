@@ -157,12 +157,10 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
 app.post("/character/profile", (req: Request, res: Response) => {
   const data = req.body;
   if (!validateCharacter(data)) {
-    return res
-      .status(400)
-      .json({
-        error: "Invalid character_profile",
-        details: validateCharacter.errors,
-      });
+    return res.status(400).json({
+      error: "Invalid character_profile",
+      details: validateCharacter.errors,
+    });
   }
   res.json({
     id: `character_${Date.now()}`,
@@ -176,12 +174,10 @@ app.post("/scenes/plan", (req: Request, res: Response) => {
   const items = Array.isArray(data) ? data : [data];
   for (const item of items) {
     if (!validateSceneSpec(item)) {
-      return res
-        .status(400)
-        .json({
-          error: "Invalid scene spec",
-          details: validateSceneSpec.errors,
-        });
+      return res.status(400).json({
+        error: "Invalid scene spec",
+        details: validateSceneSpec.errors,
+      });
     }
   }
   res.json({
@@ -252,12 +248,10 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
   try {
     const scene = (req.body?.scene ?? req.body) as any;
     if (!validateSceneSpec(scene)) {
-      return res
-        .status(400)
-        .json({
-          error: "Invalid scene spec",
-          details: validateSceneSpec.errors,
-        });
+      return res.status(400).json({
+        error: "Invalid scene spec",
+        details: validateSceneSpec.errors,
+      });
     }
     const modelKey = String((scene as any).model ?? "");
     const version = MODEL_VERSIONS[modelKey];
@@ -387,12 +381,10 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
   try {
     const manifest = (req.body?.manifest ?? req.body) as any;
     if (!validateVideoManifest(manifest as any)) {
-      return res
-        .status(400)
-        .json({
-          error: "Invalid video manifest",
-          details: validateVideoManifest.errors,
-        });
+      return res.status(400).json({
+        error: "Invalid video manifest",
+        details: validateVideoManifest.errors,
+      });
     }
     if (
       manifest.audio &&
@@ -549,6 +541,63 @@ app.get("/jobs/recent", async (req: Request, res: Response) => {
   }
 });
 
+// Approve/Reject and rerun endpoints for basic review flow (Week 1+)
+app.post("/jobs/:id/decision", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { decision, note } = req.body || {};
+    if (!decision || !["approved", "rejected"].includes(decision))
+      return res.status(400).json({ error: "decision_required" });
+    await updateJob({ id, status: "succeeded" });
+    // Store decision fields
+    await (async () => {
+      try {
+        await (
+          await import("./db")
+        ).pool.query(
+          `update jobs set decision = $2, decision_note = $3 where id = $1`,
+          [id, decision, note || null],
+        );
+      } catch {}
+    })();
+    broadcastJobEvent({ id, type: "job_decision", status: decision });
+    res.json({ ok: true });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "decision_failed" });
+  }
+});
+
+app.post("/jobs/:id/rerun", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const job = (
+      await (
+        await import("./db")
+      ).pool.query(`select * from jobs where id = $1`, [id])
+    ).rows[0];
+    if (!job) return res.status(404).json({ error: "job_not_found" });
+    const type = String(job.type || "");
+    if (type !== "scene_render" && type !== "video_assemble")
+      return res.status(400).json({ error: "unsupported_rerun" });
+    // For simplicity, require client to provide payload again
+    const payload = req.body?.payload || null;
+    if (!payload) return res.status(400).json({ error: "payload_required" });
+    // Map to existing endpoints
+    if (type === "scene_render") {
+      (req as any).body = { scene: payload };
+      return app._router.handle(req, res, () => undefined);
+    }
+    if (type === "video_assemble") {
+      (req as any).body = { manifest: payload };
+      return app._router.handle(req, res, () => undefined);
+    }
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "rerun_failed" });
+  }
+});
+
 app.get("/kpis/today", async (_req: Request, res: Response) => {
   try {
     const kpis = await getKpisToday();
@@ -556,6 +605,27 @@ app.get("/kpis/today", async (_req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: "kpis_failed" });
   }
+});
+
+// Guardrails config (Week 1+ minimal): in-memory with env defaults
+let guardrails = {
+  max_cost_per_batch_usd: Number(process.env.MAX_COST_PER_BATCH || 10),
+  max_concurrency: Number(process.env.MAX_CONCURRENCY || 3),
+};
+
+app.get("/settings/guardrails", (_req: Request, res: Response) => {
+  res.json(guardrails);
+});
+
+app.post("/settings/guardrails", (req: Request, res: Response) => {
+  const { max_cost_per_batch_usd, max_concurrency } = req.body || {};
+  if (
+    typeof max_cost_per_batch_usd !== "number" ||
+    typeof max_concurrency !== "number"
+  )
+    return res.status(400).json({ error: "invalid_settings" });
+  guardrails = { max_cost_per_batch_usd, max_concurrency };
+  res.json({ ok: true, guardrails });
 });
 
 // Presigned upload URL for assets (R2/MinIO compatible)
