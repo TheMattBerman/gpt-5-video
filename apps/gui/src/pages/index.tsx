@@ -1,21 +1,193 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+type RecentAsset = { key: string; contentType: string; uploadedAt: number; previewUrl?: string };
 
 export default function Home() {
   const [ping, setPing] = useState<string>("connecting...");
+  const [file, setFile] = useState<File | null>(null);
+  const [keyPrefix, setKeyPrefix] = useState<string>("dev/");
+  const [contentType, setContentType] = useState<string>("");
+  const [status, setStatus] = useState<string>("");
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
+  const [recent, setRecent] = useState<RecentAsset[]>([]);
+
+  const apiBase = useMemo(() => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000", []);
+  const publicAssetBase = useMemo(() => (process.env.NEXT_PUBLIC_ASSET_BASE || "").replace(/\/$/, ""), []);
+
   useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
-    const es = new EventSource(`${url}/jobs/stream`);
-    es.addEventListener("ping", (ev) => setPing((ev as MessageEvent).data));
+    const es = new EventSource(`${apiBase}/jobs/stream`);
+    es.addEventListener("ping", (ev) => setPing((ev as MessageEvent).data as string));
     es.onerror = () => setPing("disconnected");
     return () => es.close();
-  }, []);
+  }, [apiBase]);
+
+  useEffect(() => {
+    if (file && file.type && !contentType) setContentType(file.type);
+  }, [file, contentType]);
+
+  async function handleUpload() {
+    if (!file) {
+      setStatus("Choose a file first");
+      return;
+    }
+    const key = `${keyPrefix}${file.name}`.replace(/\/+/, "/");
+    const ctype = contentType || file.type || "application/octet-stream";
+    setStatus("Requesting signed URL...");
+    try {
+      const signRes = await fetch(`${apiBase}/uploads/sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, content_type: ctype })
+      });
+      if (!signRes.ok) throw new Error(`sign failed: ${signRes.status}`);
+      const { url } = (await signRes.json()) as { url: string; key: string };
+
+      setStatus("Uploading...");
+      const putRes = await fetch(url, { method: "PUT", headers: { "Content-Type": ctype }, body: file });
+      if (!putRes.ok) throw new Error(`put failed: ${putRes.status}`);
+
+      // Prefer public asset base for reads in dev (R2 public bucket)
+      let preview: string | undefined = undefined;
+      if (publicAssetBase) {
+        preview = `${publicAssetBase}/${key}`;
+      } else {
+        // Fallback to API debug endpoint to compute a public or signed GET URL
+        const dbg = await fetch(`${apiBase}/uploads/debug-get?key=${encodeURIComponent(key)}`).then((r) => r.json());
+        preview = (dbg.public_url as string) || (dbg.url as string) || undefined;
+      }
+      setPreviewUrl(preview);
+      setRecent((prev) => [{ key, contentType: ctype, uploadedAt: Date.now(), previewUrl: preview }, ...prev].slice(0, 10));
+      setStatus("Uploaded ✅");
+    } catch (err: any) {
+      setStatus(`Error: ${err?.message || String(err)}`);
+      setPreviewUrl(undefined);
+    }
+  }
+
   return (
-    <main style={{ display: "grid", placeItems: "center", minHeight: "100dvh" }}>
-      <div>
-        <h1>All-Replicate Content Engine</h1>
-        <p>SSE status: {ping}</p>
+    <main className="min-h-dvh bg-gray-50">
+      <div className="mx-auto max-w-4xl p-6 space-y-8">
+        <header className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">All-Replicate Content Engine</h1>
+          <div className="text-sm text-gray-600">SSE status: {ping}</div>
+        </header>
+
+        <section className="grid grid-cols-2 gap-4">
+          <div className="rounded-lg border bg-white p-4">
+            <div className="text-xs font-medium text-gray-500 mb-2">Dashboard</div>
+            <div className="grid grid-cols-2 gap-3">
+              <Tile label="Uploads (session)" value={String(recent.length)} />
+              <Tile label="Last ping (ms ago)" value={String(Math.max(0, Date.now() - Number(ping?.match(/\"ts\":\s*(\d+)/)?.[1] || Date.now())))} />
+            </div>
+          </div>
+          <div className="rounded-lg border bg-white p-4">
+            <div className="text-xs font-medium text-gray-500 mb-2">Upload to R2 (dev)</div>
+            <div className="space-y-3">
+              <div>
+                <input
+                  type="file"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm">Prefix
+                  <input
+                    value={keyPrefix}
+                    onChange={(e) => setKeyPrefix(e.target.value)}
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    placeholder="dev/"
+                  />
+                </label>
+                <label className="text-sm">Content-Type
+                  <input
+                    value={contentType}
+                    onChange={(e) => setContentType(e.target.value)}
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    placeholder={file?.type || "application/octet-stream"}
+                  />
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleUpload}
+                  className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
+                  disabled={!file}
+                >
+                  Upload
+                </button>
+                <div className="text-sm text-gray-600">{status}</div>
+              </div>
+              {previewUrl && (
+                <div className="mt-2 space-y-2">
+                  <div className="text-xs text-gray-500">Preview</div>
+                  {contentType.startsWith("image/") ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={previewUrl} alt="preview" className="max-h-60 rounded border" />
+                  ) : contentType.startsWith("video/") ? (
+                    <video src={previewUrl} controls className="max-h-60 rounded border" />
+                  ) : (
+                    <a href={previewUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm">
+                      {previewUrl}
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border bg-white p-4">
+          <div className="text-xs font-medium text-gray-500 mb-2">Recent assets (session)</div>
+          <div className="overflow-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-600">
+                  <th className="px-2 py-1">Key</th>
+                  <th className="px-2 py-1">Content-Type</th>
+                  <th className="px-2 py-1">Uploaded</th>
+                  <th className="px-2 py-1">Preview</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((a) => (
+                  <tr key={`${a.key}-${a.uploadedAt}`} className="border-t">
+                    <td className="px-2 py-1 font-mono">{a.key}</td>
+                    <td className="px-2 py-1">{a.contentType}</td>
+                    <td className="px-2 py-1 text-gray-600">{new Date(a.uploadedAt).toLocaleTimeString()}</td>
+                    <td className="px-2 py-1">
+                      {a.previewUrl ? (
+                        <a href={a.previewUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                          open
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {recent.length === 0 && (
+                  <tr>
+                    <td className="px-2 py-4 text-gray-500" colSpan={4}>
+                      No uploads yet
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </main>
+  );
+}
+
+function Tile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border p-3">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-xl font-semibold">{value}</div>
+    </div>
   );
 }
 

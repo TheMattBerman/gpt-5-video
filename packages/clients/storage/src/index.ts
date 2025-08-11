@@ -1,8 +1,5 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { HttpRequest } from "@aws-sdk/protocol-http";
-import { Sha256 } from "@aws-crypto/sha256-js";
-import { formatUrl } from "@aws-sdk/util-format-url";
 
 export type S3Config = {
   endpoint: string;
@@ -48,26 +45,6 @@ export async function createPresignedGetUrl(
   key: string,
   expiresInSeconds = 900
 ) {
-  // Use a minimal presign to avoid any checksum-related headers on GET
-  const signer = (client as any).config?.signer as {
-    sign: (req: HttpRequest, opts: { signingDate?: Date; signingRegion?: string; signingService?: string; expiresIn?: number }) => Promise<HttpRequest>;
-  };
-  if (signer && typeof signer.sign === "function") {
-    const endpoint = await (client as any).config.endpoint();
-    const req = new HttpRequest({
-      method: "GET",
-      protocol: endpoint.protocol,
-      hostname: endpoint.hostname,
-      port: endpoint.port,
-      path: `/${bucket}/${encodeURI(key)}`,
-      query: {},
-      headers: {
-        host: endpoint.hostname
-      }
-    });
-    const signed = await signer.sign(req, { expiresIn: expiresInSeconds, signingService: "s3", signingRegion: (client as any).config.region });
-    return formatUrl(signed as any);
-  }
   const command = new GetObjectCommand({ Bucket: bucket, Key: key });
   return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
 }
