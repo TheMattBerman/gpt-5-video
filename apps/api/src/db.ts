@@ -21,6 +21,8 @@ export async function ensureTables() {
       payload jsonb,
       locked_at timestamptz,
       locked_by text,
+      attempt_count integer not null default 0,
+      next_run_at timestamptz,
       queue_wait_ms integer,
       cancelled boolean default false,
       decision text,
@@ -47,6 +49,12 @@ export async function ensureTables() {
     `alter table jobs add column if not exists locked_at timestamptz;`,
   );
   await pool.query(`alter table jobs add column if not exists locked_by text;`);
+  await pool.query(
+    `alter table jobs add column if not exists attempt_count integer default 0;`,
+  );
+  await pool.query(
+    `alter table jobs add column if not exists next_run_at timestamptz;`,
+  );
   await pool.query(
     `alter table jobs add column if not exists queue_wait_ms integer;`,
   );
@@ -128,6 +136,26 @@ export async function ensureTables() {
   await pool.query(
     `create index if not exists idx_hook_synth_synth_id on hook_synth(synth_id);`,
   );
+
+  // Characters and stability seeds
+  await pool.query(`
+    create table if not exists characters (
+      id text primary key,
+      data jsonb not null,
+      created_at timestamptz default now()
+    );
+  `);
+  await pool.query(`
+    create table if not exists character_seeds (
+      id bigserial primary key,
+      character_id text,
+      prompt text,
+      seed bigint,
+      model_version text,
+      image_url text,
+      created_at timestamptz default now()
+    );
+  `);
 }
 
 export async function insertJob(job: {
@@ -167,6 +195,8 @@ export async function updateJob(job: {
   lockedBy?: string | null;
   payload?: Record<string, unknown> | null;
   cancelled?: boolean | null;
+  attemptCount?: number | null;
+  nextRunAt?: Date | null;
 }) {
   const fields: string[] = [];
   const values: any[] = [];
@@ -196,6 +226,9 @@ export async function updateJob(job: {
   if (job.payload !== undefined)
     add("payload", job.payload ? JSON.stringify(job.payload) : null);
   if (job.cancelled !== undefined) add("cancelled", job.cancelled);
+  if (job.attemptCount !== undefined) add("attempt_count", job.attemptCount);
+  if (job.nextRunAt !== undefined)
+    add("next_run_at", job.nextRunAt ? job.nextRunAt.toISOString() : null);
   if (!fields.length) return;
   await pool.query(
     `update jobs set ${fields.join(", ")} where id = $1`,
@@ -269,6 +302,12 @@ export async function getKpisToday() {
   const inProgressP = pool.query(
     `select count(*)::int as c from jobs where status in ('queued','processing')`,
   );
+  const processingCountP = pool.query(
+    `select count(*)::int as c from jobs where status = 'processing'`,
+  );
+  const queuedCountP = pool.query(
+    `select count(*)::int as c from jobs where status = 'queued'`,
+  );
   const failuresP = pool.query(
     `select count(*)::int as c from jobs where status = 'failed' and created_at >= $1`,
     [startIso],
@@ -297,6 +336,8 @@ export async function getKpisToday() {
       spendP,
       failuresByCatP,
       avgQueueWaitP,
+      processingCountP,
+      queuedCountP,
     ]);
   return {
     in_progress: inProgress.rows[0]?.c ?? 0,
@@ -312,6 +353,8 @@ export async function getKpisToday() {
       {},
     ),
     avg_queue_wait_ms: avgQueueWait.rows[0]?.avg ?? 0,
+    processing_count: (processingCountP as any).rows?.[0]?.c ?? 0,
+    queued_count: (queuedCountP as any).rows?.[0]?.c ?? 0,
   };
 }
 
@@ -364,7 +407,8 @@ export async function claimNextQueuedJob(types: string[], workerId: string) {
   // Optimistic claim: pick oldest queued job of supported type
   const { rows } = await pool.query(
     `select id from jobs where status = 'queued' and cancelled = false and type = any($1)
-     order by created_at asc limit 1`,
+     and (next_run_at is null or next_run_at <= now())
+     order by coalesce(next_run_at, created_at) asc, created_at asc limit 1`,
     [types],
   );
   const id = rows[0]?.id as string | undefined;
@@ -507,6 +551,7 @@ export async function listHookSynth(params: {
   limit?: number;
   offset?: number;
   approved?: boolean;
+  icp?: string;
   sort?: string; // e.g., 'created_at:desc'
 }) {
   const limit = Math.min(Math.max(1, Number(params.limit || 50)), 500);
@@ -524,6 +569,10 @@ export async function listHookSynth(params: {
   if (typeof params.approved === "boolean") {
     args.push(params.approved);
     clauses.push(`approved = $${args.length}`);
+  }
+  if (params.icp) {
+    args.push(params.icp);
+    clauses.push(`icp = $${args.length}`);
   }
   const where = clauses.length ? `where ${clauses.join(" and ")}` : "";
   const sort = String(params.sort || "");
@@ -577,4 +626,40 @@ export async function updateHookSynth(
     `update hook_synth set ${sets.join(", ")} where id = $1`,
     args,
   );
+}
+
+export async function insertCharacterProfile(id: string, data: unknown) {
+  await pool.query(
+    `insert into characters (id, data) values ($1, $2) on conflict (id) do update set data = excluded.data`,
+    [id, JSON.stringify(data)],
+  );
+}
+
+export async function insertCharacterSeeds(
+  characterId: string | null,
+  seeds: Array<{
+    prompt: string;
+    seed?: number | null;
+    model_version?: string | null;
+    image_url?: string | null;
+  }>,
+) {
+  if (!seeds?.length) return;
+  const text = `insert into character_seeds (character_id, prompt, seed, model_version, image_url) values ${seeds
+    .map(
+      (_, i) =>
+        `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`,
+    )
+    .join(", ")}`;
+  const values: any[] = [];
+  for (const s of seeds) {
+    values.push(
+      characterId,
+      s.prompt || null,
+      s.seed ?? null,
+      s.model_version || null,
+      s.image_url || null,
+    );
+  }
+  await pool.query(text, values);
 }

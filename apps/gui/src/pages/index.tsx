@@ -26,6 +26,8 @@ export default function Home() {
     spend_today_usd: number;
     failures_by_category?: Record<string, number>;
     avg_queue_wait_ms?: number;
+    processing_count?: number;
+    queued_count?: number;
   } | null>(null);
   const { show } = useToast();
 
@@ -211,6 +213,15 @@ export default function Home() {
               <Tile
                 label="In-progress jobs"
                 value={String(serverKpis?.in_progress ?? "--")}
+                warn={!serverKpis}
+              />
+              <Tile
+                label="Processing | Queued"
+                value={
+                  serverKpis
+                    ? `${serverKpis.processing_count ?? 0} | ${serverKpis.queued_count ?? 0}`
+                    : "--"
+                }
                 warn={!serverKpis}
               />
               <Tile

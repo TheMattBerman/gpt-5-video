@@ -176,7 +176,7 @@ export default function CharacterPage() {
     } else {
       show({
         title: "Character profile saved",
-        description: String(data?.id || ""),
+        description: String(data?.character_id || ""),
         variant: "success",
       });
     }
@@ -191,53 +191,39 @@ export default function CharacterPage() {
     const prompts = testPrompts.filter((p) => p.trim());
     if (!prompts.length) return;
     setTestResults(prompts.map((p) => ({ prompt: p, status: "queued" })));
-    const calls = prompts.map(async (p, idx) => {
-      const scene = {
-        scene_id: `stability_${idx + 1}`,
-        duration_s: 1.0,
-        composition: "stability_test",
-        props: [],
-        overlays: [],
-        model: "ideogram-character",
-        model_inputs: {
-          prompt: p,
-          character_reference_image: ref,
+    try {
+      const res = await fetch(`${apiBase}/character/stability-test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference_image: ref,
+          prompts,
           aspect_ratio: testAspect,
           rendering_speed: testSpeed,
-        },
-      } as any;
-      try {
-        const res = await fetch(`${apiBase}/scenes/render`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scene }),
-        });
-        const data = await res.json();
-        const output = Array.isArray(data?.output)
-          ? data.output.find((u: any) => typeof u === "string")
-          : typeof data?.output === "string"
-            ? data.output
-            : undefined;
-        setTestResults((prev) =>
-          prev.map((r, i) =>
-            i === idx
-              ? {
-                  ...r,
-                  status: res.ok ? "succeeded" : "failed",
-                  output,
-                  seed: typeof data?.seed === "number" ? data.seed : null,
-                  model_version: data?.model_version,
-                }
-              : r,
-          ),
-        );
-      } catch (e) {
-        setTestResults((prev) =>
-          prev.map((r, i) => (i === idx ? { ...r, status: "failed" } : r)),
-        );
-      }
-    });
-    await Promise.allSettled(calls);
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(String(data?.error || res.statusText));
+      const results = Array.isArray(data?.results) ? data.results : [];
+      setTestResults(
+        prompts.map((p) => {
+          const r = results.find((x: any) => x.prompt === p);
+          return (
+            r || {
+              prompt: p,
+              status: "failed",
+            }
+          );
+        }),
+      );
+    } catch (e: any) {
+      show({
+        title: "Stability test failed",
+        description: String(e?.message || e),
+        variant: "error",
+      });
+      setTestResults((prev) => prev.map((r) => ({ ...r, status: "failed" })));
+    }
   }
 
   return (

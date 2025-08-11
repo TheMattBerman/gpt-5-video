@@ -87,6 +87,7 @@ export default function HooksPage() {
   const [synthResp, setSynthResp] = useState<any>(null);
   const [mineProgress, setMineProgress] = useState<string>("");
   const [synthProgress, setSynthProgress] = useState<string>("");
+  const [synthErrorCat, setSynthErrorCat] = useState<string>("");
   const [mineErrorCat, setMineErrorCat] = useState<string>("");
   const [corpusPage, setCorpusPage] = useState<{
     limit: number;
@@ -95,6 +96,10 @@ export default function HooksPage() {
   const [synthPage, setSynthPage] = useState<{ limit: number; offset: number }>(
     { limit: 20, offset: 0 },
   );
+  const [synthApprovedFilter, setSynthApprovedFilter] = useState<
+    "all" | "approved" | "unapproved"
+  >("all");
+  const [synthIcp, setSynthIcp] = useState<string>("");
   const [synthEdit, setSynthEdit] = useState<{
     open: boolean;
     row?: HookSynthRow;
@@ -137,7 +142,14 @@ export default function HooksPage() {
             setSynthProgress(
               `${data.progress.step || "processing"} ${data.progress.pct ?? 0}%`,
             );
-          if (data.status === "succeeded") setSynthProgress("done");
+          if (data.status === "succeeded") {
+            setSynthProgress("done");
+            setSynthErrorCat("");
+          }
+          if (data.status === "failed") {
+            setSynthProgress("failed");
+            setSynthErrorCat(String(data.error_category || ""));
+          }
         }
       } catch {}
     };
@@ -166,6 +178,9 @@ export default function HooksPage() {
     params.set("limit", String(synthPage.limit));
     params.set("offset", String(synthPage.offset));
     if (synthSort) params.set("sort", synthSort);
+    if (synthApprovedFilter === "approved") params.set("approved", "true");
+    if (synthApprovedFilter === "unapproved") params.set("approved", "false");
+    if (synthIcp.trim()) params.set("icp", synthIcp.trim());
     const res = await fetch(`${apiBase}/hooks/synth?${params.toString()}`);
     const data = await res.json();
     setSynth(Array.isArray(data.items) ? data.items : []);
@@ -729,6 +744,11 @@ export default function HooksPage() {
                     {synthProgress}
                   </span>
                 )}
+                {synthErrorCat && (
+                  <span className="rounded bg-red-50 px-2 py-0.5 text-red-800">
+                    {synthErrorCat}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -738,6 +758,29 @@ export default function HooksPage() {
                 >
                   Refresh synth
                 </button>
+                <label className="text-xs text-gray-700">
+                  Approved
+                  <select
+                    className="ml-1 rounded border px-2 py-0.5"
+                    value={synthApprovedFilter}
+                    onChange={(e) =>
+                      setSynthApprovedFilter(e.target.value as any)
+                    }
+                  >
+                    <option value="all">all</option>
+                    <option value="approved">approved</option>
+                    <option value="unapproved">unapproved</option>
+                  </select>
+                </label>
+                <label className="text-xs text-gray-700">
+                  ICP
+                  <input
+                    className="ml-1 rounded border px-2 py-0.5"
+                    placeholder="filter ICP"
+                    value={synthIcp}
+                    onChange={(e) => setSynthIcp(e.target.value)}
+                  />
+                </label>
                 <label>
                   <select
                     className="rounded border px-2 py-0.5"

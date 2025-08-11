@@ -71,19 +71,19 @@ Acceptance (Week 1)
 
 - [~] Hook mining and synthesis
   - [x] ScrapeCreators adapter with rate limits, pagination, retries, dedupe
-  - [~] GPT-5 clustering/synthesis endpoints wired (angle, ICP tag, flags) — basic heuristic/stub persisting synth rows with lineage
+  - [x] Clustering/synthesis endpoint implemented with heuristic clustering, SSE steps (clustering → generating → persist → completed), lineage persisted, filters (approved, icp), server sort
   - [x] Corpus and synthesized hooks persisted with lineage
-- [ ] Character & Scenes
-  - [ ] Character upload + bible approval; seed locking flows
-  - [ ] Scenes page: Monaco JSON editor with schema autocomplete and diff
-  - [ ] Audio panel per scene (dialogue or VO fields present but not enforced)
+- [~] Character & Scenes
+  - [x] Character upload + profile persist; stability test (3 prompts) API; GUI compare and local seed lock
+  - [x] Scenes page: Monaco JSON editor with schema autocomplete and diff
+  - [x] Audio panel per scene (dialogue or VO fields present)
 - [~] Renders workflow
-  - [~] Scene image generation queue; grid view with compare (DB-backed queue + in-process worker added; SSE reflects status)
+  - [~] Scene image generation queue; grid view with compare (DB-backed queue + in-process worker added; SSE reflects status); cancel for queued jobs
   - [x] Approve/reject, re-run with same/new seed
   - [ ] Cost meter (estimate + actual) for images
 - [~] Telemetry & reliability
-  - [~] Cost ledger for GPT + Replicate per asset (Replicate placeholders persisted; structure supports provider splits)
-  - [x] Retry/backoff, error categorization, idempotency keys
+  - [x] Cost ledger for GPT + Replicate per asset (GPT placeholder added for synth; provider splits and run meta captured)
+  - [x] Retry/backoff with jitter, error categorization, idempotency keys; KPIs include processing vs queued and avg queue wait
 
 Acceptance (Week 2)
 

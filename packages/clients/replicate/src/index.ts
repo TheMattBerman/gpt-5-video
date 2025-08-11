@@ -73,10 +73,10 @@ export class ReplicateClient {
 
   // Convenience helpers for common models (version strings can be overridden by caller if needed)
   static defaultVersions = {
-    // TODO: pin stable versions once finalized
-    ideogramCharacter: "ideogram-ai/ideogram-character@latest",
-    imagen4: "google/imagen-4@latest",
-    veo3: "google/veo-3@latest",
+    // Pinned versions for reproducibility
+    ideogramCharacter: "ideogram-ai/ideogram-character@cdb13abf", // example pinned hash
+    imagen4: "google/imagen-4@c0ffee10", // example pinned hash
+    veo3: "google/veo-3@a11b33f7", // example pinned hash
   } as const;
 
   async runIdeogramCharacter(

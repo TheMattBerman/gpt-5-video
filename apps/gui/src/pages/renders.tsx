@@ -282,6 +282,40 @@ export default function RendersPage() {
                     </div>
                   )}
                   <div className="mt-2 flex items-center gap-2">
+                    {j.status === "queued" && (
+                      <button
+                        className="rounded border px-2 py-1 text-xs"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(
+                              `${apiBase}/jobs/${j.id}/cancel`,
+                              { method: "POST" },
+                            );
+                            if (res.ok)
+                              show({ title: "Cancelled", variant: "success" });
+                            else if (res.status === 409)
+                              show({
+                                title: "Not cancellable",
+                                description: "Job already processing",
+                                variant: "error",
+                              });
+                            else
+                              show({
+                                title: "Cancel failed",
+                                variant: "error",
+                              });
+                          } catch (e: any) {
+                            show({
+                              title: "Cancel failed",
+                              description: String(e?.message || e),
+                              variant: "error",
+                            });
+                          }
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    )}
                     <button
                       className="rounded border px-2 py-1 text-xs"
                       onClick={async () => {

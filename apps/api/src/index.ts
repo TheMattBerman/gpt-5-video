@@ -26,6 +26,9 @@ import {
   getJobPayload,
   cancelJob,
   countProcessingJobs,
+  insertCharacterProfile,
+  insertCharacterSeeds,
+  pool,
 } from "./db";
 import {
   createS3Client,
@@ -206,47 +209,157 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
       id: jobId,
       type: "hooks_synthesize",
       status: "queued",
+      progress: { step: "queued", pct: 0 },
     });
 
-    broadcastJobEvent({
-      id: jobId,
-      type: "hooks_synthesize",
-      status: "processing",
-      progress: { step: "clustering", pct: 20 },
-    });
-    const sample = [
-      {
-        hook_text: "Your CAC is not high, your loop is broken.",
-        angle: "contrarian",
-        icp: "DTC operators",
-        risk_flags: ["implied guarantee"],
-        inspiration_url: "https://example.com/post/1",
-      },
-    ];
-    const mineId = String(body?.corpus_id || "");
-    await insertHookSynthItems(jobId, mineId || null, sample);
-    broadcastJobEvent({
-      id: jobId,
-      type: "hooks_synthesize",
-      status: "processing",
-      progress: { step: "persisted", pct: 90 },
+    // Perform clustering/synthesis asynchronously with SSE progress
+    setImmediate(async () => {
+      try {
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_synthesize",
+          status: "processing",
+          progress: { step: "clustering", pct: 15 },
+        });
+        const mineId = String(body?.corpus_id || "");
+        const icpFilter = typeof body?.icp === "string" ? String(body.icp) : "";
+        // Fetch a sample of corpus rows for heuristic synthesis
+        const corpusRows = await listHookCorpus({
+          mineId: mineId || undefined,
+          limit: 200,
+          offset: 0,
+          sort: "created_at:desc",
+        });
+        // Simple heuristic clustering by detected_format or text signals
+        const clusters: Record<string, any[]> = {};
+        for (const row of corpusRows) {
+          const text = String(row.caption_or_transcript || "");
+          let label = String(row.detected_format || "").trim() || "general";
+          if (/^everyone|nobody|no one|stop/i.test(text))
+            label = "pattern_interrupt";
+          if (/\bnot\b|wrong|myth/i.test(text)) label = "contrarian";
+          if (/^how to|here's how|3 steps|framework/i.test(text))
+            label = "howto";
+          clusters[label] = clusters[label] || [];
+          clusters[label].push(row);
+        }
+
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_synthesize",
+          status: "processing",
+          progress: { step: "generating", pct: 50 },
+        });
+        const out: Array<{
+          hook_text: string;
+          angle: string;
+          icp: string;
+          risk_flags: string[];
+          inspiration_url?: string;
+        }> = [];
+        const icp = icpFilter || "DTC operators";
+        const pushHook = (
+          hook_text: string,
+          angle: string,
+          inspiration_url?: string,
+        ) => {
+          const risk: string[] = [];
+          if (/guarantee|will|always/i.test(hook_text))
+            risk.push("implied guarantee");
+          out.push({
+            hook_text,
+            angle,
+            icp,
+            risk_flags: risk,
+            inspiration_url,
+          });
+        };
+        const byCluster = Object.entries(clusters)
+          .sort((a, b) => b[1].length - a[1].length)
+          .slice(0, 4);
+        for (const [label, rows] of byCluster) {
+          const top = rows.slice(0, 10);
+          for (const r of top) {
+            const base = String(r.caption_or_transcript || "");
+            const short =
+              base.split(/[.!?]/)[0]?.slice(0, 80) || base.slice(0, 80);
+            if (label === "contrarian")
+              pushHook(
+                short
+                  .replace(/^(i\s+think|we\s+think)\s+/i, "")
+                  .replace(/\.$/, "") +
+                  ". Your CAC isn’t high. Your loop is broken.",
+                "contrarian",
+                r.url,
+              );
+            else if (label === "howto")
+              pushHook(
+                `3 steps: ${short.replace(/^(how\s+to\s+)/i, "").replace(/\.$/, "")} → lock your loop, cut CAC`,
+                "howto",
+                r.url,
+              );
+            else if (label === "pattern_interrupt")
+              pushHook(
+                `Everyone is wrong about ${short.replace(/everyone\s+is\s+wrong\s+about\s+/i, "").replace(/\.$/, "")} — here’s the loop that wins`,
+                "pattern_interrupt",
+                r.url,
+              );
+            else
+              pushHook(
+                `${short.replace(/\.$/, "")} — fix your loop, win your market`,
+                "insight",
+                r.url,
+              );
+            if (out.length >= 40) break;
+          }
+          if (out.length >= 40) break;
+        }
+
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_synthesize",
+          status: "processing",
+          progress: { step: "persist", pct: 85 },
+        });
+        await insertHookSynthItems(jobId, mineId || null, out);
+        await insertCost({
+          jobId,
+          provider: "gpt",
+          amountUsd: Math.max(0.01, out.length * 0.001),
+          meta: { route: "hooks.synthesize", icp, count: out.length },
+        });
+        await updateJob({
+          id: jobId,
+          status: "succeeded",
+          completedAt: new Date(),
+        });
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_synthesize",
+          status: "succeeded",
+          progress: { step: "completed", pct: 100 },
+        });
+      } catch (e: any) {
+        const cat = categorizeError(e);
+        await updateJob({
+          id: jobId,
+          status: "failed",
+          error: e?.message || String(e),
+          errorCategory: cat,
+        });
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_synthesize",
+          status: "failed",
+          error_category: cat,
+        });
+      }
     });
 
-    await updateJob({
-      id: jobId,
-      status: "succeeded",
-      completedAt: new Date(),
-    });
-    broadcastJobEvent({
-      id: jobId,
-      type: "hooks_synthesize",
-      status: "succeeded",
-    });
     res.json({
       id: jobId,
       run_id: (req as any).id || undefined,
       status: "queued",
-      items: sample,
     });
   } catch (err) {
     req.log?.error?.(err, "hooks.synthesize.failed");
@@ -278,6 +391,7 @@ app.get("/hooks/synth", async (req: Request, res: Response) => {
       typeof req.query.approved === "string"
         ? req.query.approved === "true"
         : undefined;
+    const icp = String(req.query.icp || "").trim() || undefined;
     const sort = String(req.query.sort || "").trim() || undefined;
     const rows = await listHookSynth({
       mineId,
@@ -285,6 +399,7 @@ app.get("/hooks/synth", async (req: Request, res: Response) => {
       limit,
       offset,
       approved,
+      icp,
       sort,
     });
     res.json({ items: rows });
@@ -314,7 +429,7 @@ app.patch("/hooks/synth/:id", async (req: Request, res: Response) => {
   }
 });
 
-app.post("/character/profile", (req: Request, res: Response) => {
+app.post("/character/profile", async (req: Request, res: Response) => {
   const data = req.body;
   if (!validateCharacter(data)) {
     return res.status(400).json({
@@ -322,11 +437,98 @@ app.post("/character/profile", (req: Request, res: Response) => {
       details: validateCharacter.errors,
     });
   }
+  const characterId = `character_${Date.now()}`;
+  await insertCharacterProfile(characterId, data);
   res.json({
-    id: `character_${Date.now()}`,
+    character_id: characterId,
     run_id: (req as any).id || undefined,
     data,
   });
+});
+
+app.post("/character/stability-test", async (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const characterId =
+      typeof body.character_id === "string" ? String(body.character_id) : null;
+    const reference = String(body.reference_image || "").trim();
+    if (!reference)
+      return res.status(400).json({ error: "reference_image_required" });
+    const prompts: string[] =
+      Array.isArray(body.prompts) && body.prompts.length
+        ? body.prompts.map((s: any) => String(s))
+        : [
+            "mascot at a standing desk, soft key light",
+            "mascot in startup office, confident expression",
+            "mascot close-up, clean typography background",
+          ];
+    const aspect = String(body.aspect_ratio || "9:16");
+    const speed = String(body.rendering_speed || "Default");
+    const results: Array<{
+      prompt: string;
+      output?: string;
+      seed?: number | null;
+      model_version?: string;
+      status: string;
+    }> = [];
+    for (const p of prompts) {
+      try {
+        const input = buildModelInputs(
+          "ideogram-character" as any,
+          {
+            prompt: p,
+            character_reference_image: reference,
+            aspect_ratio: aspect,
+            rendering_speed: speed,
+          } as any,
+        );
+        const pred = await createPrediction(
+          MODEL_VERSIONS["ideogram-character"],
+          input as any,
+        );
+        broadcastJobEvent({
+          type: "character_stability",
+          status: "processing",
+          progress: { step: "polling", pct: 50 },
+        });
+        const finalPred: any = await waitForPrediction(pred.id);
+        const out = finalPred?.output;
+        const url: string | undefined = Array.isArray(out)
+          ? out.find((u: any) => typeof u === "string")
+          : typeof out === "string"
+            ? out
+            : undefined;
+        const seed = extractSeedFromOutput(finalPred as any);
+        const version = finalPred?.version;
+        results.push({
+          prompt: p,
+          output: url,
+          seed: seed ?? null,
+          model_version: version,
+          status: "succeeded",
+        });
+        await insertCharacterSeeds(characterId, [
+          {
+            prompt: p,
+            seed: seed ?? null,
+            model_version: version || null,
+            image_url: url || null,
+          },
+        ]);
+        await insertCost({
+          jobId: `char_stability_${Date.now()}`,
+          provider: "replicate",
+          amountUsd: 0.02,
+          meta: { route: "character.stability_test", version },
+        });
+      } catch (e) {
+        results.push({ prompt: p, status: "failed" });
+      }
+    }
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: "stability_test_failed" });
+  }
 });
 
 app.post("/scenes/plan", (req: Request, res: Response) => {
@@ -348,12 +550,15 @@ app.post("/scenes/plan", (req: Request, res: Response) => {
 });
 
 const MODEL_VERSIONS: Record<string, string> = {
-  "ideogram-character": "ideogram-ai/ideogram-character",
-  "imagen-4": "google/imagen-4",
-  "veo-3": "google/veo-3",
+  "ideogram-character": ReplicateClient.defaultVersions.ideogramCharacter,
+  "imagen-4": ReplicateClient.defaultVersions.imagen4,
+  "veo-3": ReplicateClient.defaultVersions.veo3,
 };
 
-import { ReplicateClient } from "@gpt5video/replicate-client";
+import {
+  ReplicateClient,
+  extractSeedFromOutput,
+} from "@gpt5video/replicate-client";
 import { buildModelInputs } from "./models";
 
 async function createPrediction(
@@ -876,6 +1081,12 @@ async function startWorkerLoop() {
         workerId,
       );
       if (!job) return;
+      broadcastJobEvent({
+        id: job.id,
+        type: job.type,
+        status: "processing",
+        progress: { step: "claimed", pct: 5 },
+      });
       const payload = await getJobPayload(job.id);
       if (!payload) return;
       if (job.type === "scene_render")
@@ -895,6 +1106,7 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       id: jobId,
       type: "scene_render",
       status: "processing",
+      progress: { step: "creating_prediction", pct: 10 },
     });
     const modelKey = String((scene as any).model ?? "");
     const version = MODEL_VERSIONS[modelKey];
@@ -902,27 +1114,25 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       modelKey as any,
       (scene as any).model_inputs as Record<string, unknown>,
     );
-    const pred = await createPrediction(
-      version,
-      mapped as Record<string, unknown>,
-    );
+    let pred: any;
+    try {
+      pred = await createPrediction(version, mapped as Record<string, unknown>);
+    } catch (e) {
+      await scheduleRetry(jobId, e);
+      return;
+    }
+    broadcastJobEvent({
+      id: jobId,
+      type: "scene_render",
+      status: "processing",
+      progress: { step: "polling", pct: 40 },
+      prediction_id: pred.id,
+    });
     let finalPred: any;
     try {
       finalPred = await waitForPrediction(pred.id);
     } catch (e) {
-      const category = categorizeError(e);
-      await updateJob({
-        id: jobId,
-        status: "failed",
-        error: (e as any)?.message || String(e),
-        errorCategory: category,
-      });
-      broadcastJobEvent({
-        id: jobId,
-        type: "scene_render",
-        status: "failed",
-        error_category: category,
-      });
+      await scheduleRetry(jobId, e);
       return;
     }
     const startedAt =
@@ -937,7 +1147,7 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       startedAt && completedAt
         ? Date.parse(completedAt) - Date.parse(startedAt)
         : undefined;
-    const seed = extractSeed(finalPred);
+    const seed = extractSeedFromOutput(finalPred as any);
     await updateJob({
       id: jobId,
       status: "succeeded",
@@ -954,6 +1164,7 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       status: "succeeded",
       predictionId: finalPred.id,
       modelVersion: finalPred.version,
+      progress: { step: "succeeded", pct: 100 },
     });
     try {
       const out = (finalPred as any).output;
@@ -995,26 +1206,28 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
       id: jobId,
       type: "video_assemble",
       status: "processing",
+      progress: { step: "creating_prediction", pct: 10 },
     });
     const prompt = `Create a short dynamic video with ${manifest.motion}. Transitions: ${manifest.transitions}. Scenes: ${(manifest.order || []).join(", ")}.`;
-    const pred = await createPrediction(MODEL_VERSIONS["veo-3"], { prompt });
+    let pred: any;
+    try {
+      pred = await createPrediction(MODEL_VERSIONS["veo-3"], { prompt });
+    } catch (e) {
+      await scheduleRetry(jobId, e);
+      return;
+    }
     let finalPred: any;
     try {
-      finalPred = await waitForPrediction(pred.id);
-    } catch (e) {
-      const category = categorizeError(e);
-      await updateJob({
-        id: jobId,
-        status: "failed",
-        error: (e as any)?.message || String(e),
-        errorCategory: category,
-      });
       broadcastJobEvent({
         id: jobId,
         type: "video_assemble",
-        status: "failed",
-        error_category: category,
+        status: "processing",
+        progress: { step: "polling", pct: 40 },
+        prediction_id: pred.id,
       });
+      finalPred = await waitForPrediction(pred.id);
+    } catch (e) {
+      await scheduleRetry(jobId, e);
       return;
     }
     const startedAt =
@@ -1044,6 +1257,7 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
       status: "succeeded",
       predictionId: finalPred.id,
       modelVersion: finalPred.version,
+      progress: { step: "succeeded", pct: 100 },
     });
     try {
       const out = (finalPred as any).output;
@@ -1076,5 +1290,56 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
     }
   } catch (e) {
     logger.error({ err: e }, "video_assemble.worker_failed");
+  }
+}
+
+async function scheduleRetry(jobId: string, err: any) {
+  try {
+    const { rows } = await pool.query(
+      `select attempt_count from jobs where id = $1`,
+      [jobId],
+    );
+    const attempt = Number(rows[0]?.attempt_count || 0) + 1;
+    const maxAttempts = 3;
+    const category = categorizeError(err);
+    if (attempt > maxAttempts) {
+      await updateJob({
+        id: jobId,
+        status: "failed",
+        error: (err as any)?.message || String(err),
+        errorCategory: category,
+      });
+      broadcastJobEvent({
+        id: jobId,
+        type: "job",
+        status: "failed",
+        error_category: category,
+      });
+      return;
+    }
+    const backoffMs = Math.min(
+      1000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 250),
+      8000,
+    );
+    const next = new Date(Date.now() + backoffMs);
+    await updateJob({
+      id: jobId,
+      status: "queued",
+      lockedAt: null,
+      lockedBy: null,
+      attemptCount: attempt,
+      nextRunAt: next,
+      error: (err as any)?.message || String(err),
+      errorCategory: category,
+    });
+    broadcastJobEvent({
+      id: jobId,
+      type: "job",
+      status: "queued",
+      progress: { step: "retry_scheduled", pct: 0 },
+      attempt,
+    });
+  } catch (e) {
+    logger.warn({ err: e }, "schedule_retry_failed");
   }
 }
