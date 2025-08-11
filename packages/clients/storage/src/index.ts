@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export type S3Config = {
@@ -67,5 +67,26 @@ export async function headObject(
 ) {
   const cmd = new HeadObjectCommand({ Bucket: bucket, Key: key });
   return client.send(cmd);
+}
+
+export interface ListedObject {
+  key: string;
+  lastModified?: Date;
+  size?: number;
+  etag?: string;
+}
+
+export async function listObjects(
+  client: S3Client,
+  bucket: string,
+  prefix?: string,
+  maxKeys = 1000
+): Promise<ListedObject[]> {
+  const cmd = new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: maxKeys });
+  const out = await client.send(cmd);
+  const contents: Array<{ Key?: string; LastModified?: Date; Size?: number; ETag?: string }> = (out.Contents || []) as any;
+  return contents
+    .filter((c) => !!c && typeof c.Key === "string")
+    .map((c) => ({ key: c.Key as string, lastModified: c.LastModified, size: c.Size, etag: c.ETag })) as ListedObject[];
 }
 

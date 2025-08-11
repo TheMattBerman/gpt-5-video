@@ -5,7 +5,7 @@ import pino from "pino";
 import pinoHttp from "pino-http";
 import { randomUUID } from "crypto";
 import { ajv } from "@gpt5video/shared";
-import { createS3Client, createPresignedPutUrl, createPresignedGetUrl, putObjectDirect, headObject } from "@gpt5video/storage";
+import { createS3Client, createPresignedPutUrl, createPresignedGetUrl, putObjectDirect, headObject, listObjects } from "@gpt5video/storage";
 // For Week 1, import schemas directly
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -108,6 +108,23 @@ async function waitForPrediction(id: string, pollMs = 2000, timeoutMs = 10 * 60 
   }
 }
 
+function extractSeed(pred: any): number | undefined {
+  const out = pred?.output;
+  if (!out) return undefined;
+  if (typeof out === "object") {
+    if (Array.isArray(out)) {
+      for (const item of out) {
+        if (item && typeof item === "object" && typeof (item as any).seed === "number") return (item as any).seed;
+      }
+    } else {
+      if (typeof (out as any).seed === "number") return (out as any).seed;
+    }
+  }
+  const metrics = pred?.metrics;
+  if (metrics && typeof metrics.seed === "number") return metrics.seed;
+  return undefined;
+}
+
 app.post("/scenes/render", async (req: Request, res: Response) => {
   try {
     const scene = (req.body?.scene ?? req.body) as any;
@@ -120,7 +137,23 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
 
     const pred = await createPrediction(version, (scene as any).model_inputs as Record<string, unknown>);
     const finalPred = await waitForPrediction(pred.id);
-    res.json({ id: `sceneimages_${Date.now()}`, prediction: finalPred });
+    const startedAt = (finalPred as any).created_at || (finalPred as any).createdAt || undefined;
+    const completedAt = (finalPred as any).completed_at || (finalPred as any).completedAt || undefined;
+    const durationMs = startedAt && completedAt ? Date.parse(completedAt) - Date.parse(startedAt) : undefined;
+    const seed = extractSeed(finalPred);
+    req.log?.info?.({ prediction_id: finalPred.id, version: finalPred.version, seed }, "scenes.render.complete");
+    res.json({
+      id: `sceneimages_${Date.now()}`,
+      run_id: (req as any).id || undefined,
+      prediction_id: finalPred.id,
+      model_version: finalPred.version,
+      status: finalPred.status,
+      started_at: startedAt,
+      completed_at: completedAt,
+      duration_ms: durationMs,
+      seed: seed ?? null,
+      output: finalPred.output
+    });
   } catch (err) {
     req.log?.error?.(err);
     res.status(500).json({ error: "render_failed" });
@@ -139,7 +172,21 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
     const prompt = `Create a short dynamic video with ${manifest.motion}. Transitions: ${manifest.transitions}. Scenes: ${(manifest.order || []).join(", ")}.`;
     const pred = await createPrediction(MODEL_VERSIONS["veo-3"], { prompt });
     const finalPred = await waitForPrediction(pred.id);
-    res.json({ id: `video_${Date.now()}`, prediction: finalPred });
+    const startedAt = (finalPred as any).created_at || (finalPred as any).createdAt || undefined;
+    const completedAt = (finalPred as any).completed_at || (finalPred as any).completedAt || undefined;
+    const durationMs = startedAt && completedAt ? Date.parse(completedAt) - Date.parse(startedAt) : undefined;
+    req.log?.info?.({ prediction_id: finalPred.id, version: finalPred.version }, "videos.assemble.complete");
+    res.json({
+      id: `video_${Date.now()}`,
+      run_id: (req as any).id || undefined,
+      prediction_id: finalPred.id,
+      model_version: finalPred.version,
+      status: finalPred.status,
+      started_at: startedAt,
+      completed_at: completedAt,
+      duration_ms: durationMs,
+      output: finalPred.output
+    });
   } catch (err) {
     req.log?.error?.(err);
     res.status(500).json({ error: "video_assemble_failed" });
@@ -224,6 +271,34 @@ app.post("/uploads/debug-put", async (req: Request, res: Response) => {
   } catch (err) {
     req.log?.error?.(err);
     res.status(500).json({ error: "debug_put_failed" });
+  }
+});
+
+// List recent assets for dashboard
+app.get("/assets", async (req: Request, res: Response) => {
+  try {
+    const prefix = String(req.query.prefix || "");
+    const limit = Number(req.query.limit || 50);
+    const s3 = createS3Client({
+      endpoint: process.env.S3_ENDPOINT || "http://localhost:9000",
+      region: process.env.S3_REGION || "auto",
+      accessKeyId: process.env.S3_ACCESS_KEY || "",
+      secretAccessKey: process.env.S3_SECRET_KEY || "",
+      bucket: process.env.S3_BUCKET || "gpt5video",
+      forcePathStyle: true
+    });
+    const objects = await listObjects(s3 as any, process.env.S3_BUCKET || "gpt5video", prefix, limit);
+    const base = process.env.PUBLIC_ASSET_BASE?.replace(/\/$/, "");
+    const items = objects.map((o: any) => ({
+      key: o.key,
+      last_modified: o.lastModified?.toISOString?.() ?? null,
+      size: o.size ?? null,
+      preview_url: base ? `${base}/${o.key}` : undefined
+    }));
+    res.json({ items });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "assets_list_failed" });
   }
 });
 

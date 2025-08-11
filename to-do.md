@@ -26,13 +26,13 @@ Status legend: [ ] not started, [~] in progress, [x] done, [!] blocked
   - [~] Generate TS types from schemas; package export in `packages/schemas` (temp handwritten types pending generator)
   - [x] Runtime validation helpers (ajv) in `packages/shared`
 - [~] Orchestrator API (minimal viable endpoints)
-  - [ ] POST `/ingest/brand`
+  - [x] POST `/ingest/brand` (schema validated)
   - [ ] POST `/hooks/mine` (stub returns) and `/hooks/synthesize` (stub)
-  - [ ] POST `/scenes/plan` (stub; schema-validated)
-  - [~] POST `/scenes/render` (real: image generation on Replicate for Ideogram Character)
-  - [~] POST `/videos/assemble` (real: Veo 3 text→video draft, no audio yet)
-  - [x] SSE `/jobs/stream` (prediction status)
-  - [ ] Request/response validation, correlation IDs, structured logs
+  - [x] POST `/scenes/plan` (schema validated for array or single item)
+  - [~] POST `/scenes/render` (Replicate call; response includes prediction_id, model_version, seed, duration)
+  - [~] POST `/videos/assemble` (Replicate call; audio.mode=none enforced; response includes prediction_id, model_version, duration)
+  - [x] SSE `/jobs/stream` (ping event)
+  - [~] Request/response validation, correlation IDs, structured logs (pinoHttp with req ids; schemas enforced on key routes; responses include run_id)
 - [ ] Replicate client wrapper in `packages/clients/replicate`
   - [x] Prediction lifecycle, polling, error surface, seeds/model version capture
   - [ ] First model: Ideogram Character image render
@@ -42,11 +42,12 @@ Status legend: [ ] not started, [~] in progress, [x] done, [!] blocked
   - [ ] S3-compatible dev (MinIO) + signed URL helper
   - [ ] Asset registry tables (artifacts, costs, seeds, model versions)
 - [~] Operator GUI — Phase 1
-  - [~] Next.js app shell with Tailwind, React Query, SSE client
+  - [x] Next.js app shell with Tailwind, React Query, SSE client
   - [x] SSE client basic page wiring to `/jobs/stream`
-  - [ ] Dashboard tiles + recent assets table (live updates)
-  - [ ] Brand Ingest wizard with schema validation
-  - [ ] Hooks page: source config UI (ScrapeCreators placeholders)
+  - [x] Dashboard tiles + recent assets table (session) + nav links to Brand/Hooks
+  - [x] Brand Ingest wizard with schema validation
+  - [x] Hooks page placeholder
+  - [x] Scenes Plan UI with schema validation (submit to `/scenes/plan`)
 
 Acceptance (Week 1)
 

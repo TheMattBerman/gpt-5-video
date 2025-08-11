@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type RecentAsset = { key: string; contentType: string; uploadedAt: number; previewUrl?: string };
 
@@ -69,7 +70,14 @@ export default function Home() {
       <div className="mx-auto max-w-4xl p-6 space-y-8">
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">All-Replicate Content Engine</h1>
-          <div className="text-sm text-gray-600">SSE status: {ping}</div>
+          <div className="flex items-center gap-4 text-sm">
+            <nav className="flex items-center gap-3">
+              <Link href="/brand" className="text-blue-600 underline">Brand</Link>
+              <Link href="/hooks" className="text-blue-600 underline">Hooks</Link>
+              <Link href="/scenes-plan" className="text-blue-600 underline">Scenes Plan</Link>
+            </nav>
+            <div className="text-gray-600">SSE status: {ping}</div>
+          </div>
         </header>
 
         <section className="grid grid-cols-2 gap-4">
@@ -78,6 +86,7 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-3">
               <Tile label="Uploads (session)" value={String(recent.length)} />
               <Tile label="Last ping (ms ago)" value={String(Math.max(0, Date.now() - Number(ping?.match(/\"ts\":\s*(\d+)/)?.[1] || Date.now())))} />
+              <ApiHealthTile apiBase={apiBase} />
             </div>
           </div>
           <div className="rounded-lg border bg-white p-4">
@@ -189,5 +198,25 @@ function Tile({ label, value }: { label: string; value: string }) {
       <div className="text-xl font-semibold">{value}</div>
     </div>
   );
+}
+
+function ApiHealthTile({ apiBase }: { apiBase: string }) {
+  const [status, setStatus] = useState<string>("...");
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/health`);
+        const ok = res.ok && (await res.json())?.ok;
+        if (!cancelled) setStatus(ok ? "ok" : "down");
+      } catch {
+        if (!cancelled) setStatus("down");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+  return <Tile label="API" value={status} />;
 }
 

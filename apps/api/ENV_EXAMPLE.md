@@ -22,6 +22,8 @@ S3_ACCESS_KEY=minioadmin
 S3_SECRET_KEY=minioadmin
 S3_REGION=us-east-1
 S3_BUCKET=gpt5video
+# Public dev access URL (for constructing display links if needed)
+PUBLIC_ASSET_BASE=
 ```
 
 Cloudflare R2 (dev) example
