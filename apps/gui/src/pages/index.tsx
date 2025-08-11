@@ -151,6 +151,9 @@ export default function Home() {
               <Link href="/hooks" className="text-blue-600 underline">
                 Hooks
               </Link>
+              <Link href="/character" className="text-blue-600 underline">
+                Character
+              </Link>
               <Link href="/scenes-plan" className="text-blue-600 underline">
                 Scenes Plan
               </Link>
@@ -256,7 +259,6 @@ export default function Home() {
                 <div className="mt-2 space-y-2">
                   <div className="text-xs text-gray-500">Preview</div>
                   {contentType.startsWith("image/") ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={previewUrl}
                       alt="preview"

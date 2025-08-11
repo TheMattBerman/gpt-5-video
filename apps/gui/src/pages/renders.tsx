@@ -129,7 +129,6 @@ export default function RendersPage() {
                                   className="w-full max-h-56 rounded border"
                                 />
                               ) : /\.png|\.jpg|\.jpeg|\.gif/i.test(a.url) ? (
-                                // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={a.url}
                                   alt="artifact"

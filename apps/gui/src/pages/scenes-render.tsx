@@ -207,7 +207,6 @@ export default function ScenesRenderPage() {
                       className="max-h-60 w-full object-contain"
                     />
                   ) : /\.png|\.jpg|\.jpeg|\.gif/i.test(u) ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={u}
                       alt="output"

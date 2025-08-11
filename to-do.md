@@ -162,9 +162,9 @@ Acceptance (Week 3)
 - [ ] App shell with auth, nav, and theming
 - [ ] Dashboard: KPI tiles + recent assets table (live)
 - [ ] Brand Ingest: wizard with live schema validation
-- [ ] Hooks: source setup, mining progress, corpus table, synthesis review
-- [ ] Character: upload, model, aspect ratio, mask rules, stability test, seed lock
-- [ ] Scenes: Monaco editor with schema autocomplete + diff; audio panel
+- [x] Hooks: source setup, mining progress, corpus table, synthesis review
+- [x] Character: upload, model, aspect ratio, mask rules, stability test, seed lock
+- [x] Scenes: Monaco editor with schema autocomplete + diff; audio panel
 - [ ] Renders: grid, compare, approve/reject, re-run with seed controls
 - [ ] Videos: manifest builder; audio tab; render + preview player
 - [ ] Review & Export: checklist, presets, S3/download, CSV report
