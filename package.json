@@ -14,6 +14,7 @@
     "lint": "npm run -ws lint",
     "typecheck": "npm run -ws typecheck",
     "format": "npm run -ws format",
+    "test:e2e": "npm -w apps/gui run test:e2e",
     "prepare": "husky"
   },
   "devDependencies": {

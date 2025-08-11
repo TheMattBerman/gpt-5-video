@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useToast } from "../components/Toast";
+import { fetchWithAuth } from "../lib/http";
 
 export default function ReviewExportPage() {
   const apiBase = useMemo(
@@ -14,6 +16,7 @@ export default function ReviewExportPage() {
   const [preset, setPreset] = useState<"9:16" | "1:1" | "16:9" | "">("");
   const [s3Key, setS3Key] = useState<string>("dev/exports/draft.mp4");
   const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
+  const { show } = useToast();
 
   async function handlePreview() {
     try {
@@ -24,6 +27,18 @@ export default function ReviewExportPage() {
       const data = await res.json();
       setPreviewUrl(data.public_url || data.url);
     } catch {}
+  }
+
+  function computeKey(base = "dev/exports", name = "draft") {
+    const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "");
+    const suffix =
+      preset === "1:1" ? "1x1" : preset === "16:9" ? "16x9" : "9x16";
+    return `${base.replace(/\/$/, "")}/${name}_${suffix}_${ts}.mp4`;
+  }
+
+  function applyPreset(p: "9:16" | "1:1" | "16:9") {
+    setPreset(p);
+    setS3Key(computeKey());
   }
 
   return (
@@ -74,23 +89,23 @@ export default function ReviewExportPage() {
         </section>
 
         <section className="rounded border bg-white p-4">
-          <div className="text-sm font-medium mb-2">Export presets (stub)</div>
+          <div className="text-sm font-medium mb-2">Export presets</div>
           <div className="grid grid-cols-3 gap-3 text-sm">
             <button
               className={`rounded border px-3 py-1.5 ${preset === "9:16" ? "bg-gray-100" : ""}`}
-              onClick={() => setPreset("9:16")}
+              onClick={() => applyPreset("9:16")}
             >
               9:16
             </button>
             <button
               className={`rounded border px-3 py-1.5 ${preset === "1:1" ? "bg-gray-100" : ""}`}
-              onClick={() => setPreset("1:1")}
+              onClick={() => applyPreset("1:1")}
             >
               1:1
             </button>
             <button
               className={`rounded border px-3 py-1.5 ${preset === "16:9" ? "bg-gray-100" : ""}`}
-              onClick={() => setPreset("16:9")}
+              onClick={() => applyPreset("16:9")}
             >
               16:9
             </button>
@@ -113,6 +128,29 @@ export default function ReviewExportPage() {
                 Preview from S3
               </button>
             </div>
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            <button
+              className="rounded border px-2 py-1"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(s3Key);
+                  show({ title: "S3 key copied", variant: "success" });
+                } catch {
+                  show({ title: "Copy failed", variant: "error" });
+                }
+              }}
+            >
+              Copy S3 key
+            </button>
+            <a
+              className="rounded border px-2 py-1 underline"
+              href={`${apiBase}/uploads/debug-get?key=${encodeURIComponent(s3Key)}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open (signed)
+            </a>
           </div>
           {previewUrl && (
             <div className="mt-3">

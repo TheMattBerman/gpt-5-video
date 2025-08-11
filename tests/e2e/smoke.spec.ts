@@ -1,0 +1,18 @@
+import { test, expect } from "@playwright/test";
+
+const GUI_BASE = process.env.GUI_BASE || "http://localhost:3000";
+
+test.describe("Smoke", () => {
+  test("dashboard tiles render and SSE ping updates", async ({ page }) => {
+    await page.goto(GUI_BASE);
+    await expect(page.getByText("All-Replicate Content Engine")).toBeVisible();
+    await expect(page.getByText("Dashboard")).toBeVisible();
+    const sseLocator = page.getByText(/SSE status:/);
+    await expect(sseLocator).toBeVisible();
+    // Within 5s, ping should update
+    const initial = await sseLocator.textContent();
+    await page.waitForTimeout(4000);
+    const after = await sseLocator.textContent();
+    expect(initial).not.toEqual(after);
+  });
+});

@@ -72,6 +72,41 @@ app.use(
 );
 
 app.get("/health", (_req: Request, res: Response) => res.json({ ok: true }));
+// --- JWT auth scaffold (non-dev) ---
+function isProtectedRoute(req: Request): boolean {
+  const path = req.path || req.url;
+  const method = (req.method || "GET").toUpperCase();
+  // Exclusions for dev usability
+  if (
+    path.startsWith("/health") ||
+    path.startsWith("/jobs/stream") ||
+    path.startsWith("/jobs/recent") ||
+    path.startsWith("/kpis/today") ||
+    path.startsWith("/assets") ||
+    path.startsWith("/uploads/")
+  )
+    return false;
+  // Mutating routes under /scenes, /videos, /jobs
+  if (
+    /^\/scenes\b|^\/videos\b|^\/jobs\b/.test(path) &&
+    ["POST", "PUT", "PATCH"].includes(method)
+  )
+    return true;
+  return false;
+}
+
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === "development") return next();
+  if (!isProtectedRoute(req)) return next();
+  const auth = req.header("authorization") || req.header("Authorization") || "";
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (!m || !m[1] || !m[1].trim()) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+  // Accept any non-empty token for now; subject logging can be added later
+  (req as any).subject = "unknown";
+  return next();
+});
 
 // Stubs for Week 1 endpoints (schema validation to be added next)
 const validateBrand = ajv.compile(brandProfileSchema as any);
@@ -644,6 +679,7 @@ function extractSeed(pred: any): number | undefined {
 
 app.post("/scenes/render", async (req: Request, res: Response) => {
   try {
+    const reqStart = Date.now();
     // Async mode via queue
     const idemKey =
       String(
@@ -726,6 +762,11 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
     } catch {}
     broadcastJobEvent({ id: jobId, type: "scene_render", status: "queued" });
     res.status(202).json({ id: jobId, status: "queued" });
+    const duration = Date.now() - reqStart;
+    req.log?.info?.(
+      { duration_ms: duration, job_id: jobId },
+      "scenes.render.queued",
+    );
   } catch (err) {
     req.log?.error?.(err);
     try {
@@ -750,6 +791,7 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
 
 app.post("/videos/assemble", async (req: Request, res: Response) => {
   try {
+    const reqStart = Date.now();
     // Async via queue
     const idemKey =
       String(
@@ -820,6 +862,11 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
     } catch {}
     broadcastJobEvent({ id: jobId, type: "video_assemble", status: "queued" });
     res.status(202).json({ id: jobId, status: "queued" });
+    const duration = Date.now() - reqStart;
+    req.log?.info?.(
+      { duration_ms: duration, job_id: jobId },
+      "videos.assemble.queued",
+    );
   } catch (err) {
     req.log?.error?.(err);
     try {
@@ -920,6 +967,7 @@ const hookCorpusStore = new Map<string, any[]>();
 const hookSynthStore = new Map<string, any[]>();
 
 app.get("/jobs/stream", (req: Request, res: Response) => {
+  const started = Date.now();
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -931,6 +979,8 @@ app.get("/jobs/stream", (req: Request, res: Response) => {
   req.on("close", () => {
     clearInterval(interval);
     sseClients.delete(res as any);
+    const durationMs = Date.now() - started;
+    req.log?.info?.({ duration_ms: durationMs }, "sse.client.disconnected");
   });
 });
 
@@ -1215,6 +1265,7 @@ async function startWorkerLoop() {
         workerId,
       );
       if (!job) return;
+      const child = logger.child({ worker_id: workerId, job_id: job.id });
       broadcastJobEvent({
         id: job.id,
         type: job.type,
@@ -1224,10 +1275,11 @@ async function startWorkerLoop() {
       });
       const payload = await getJobPayload(job.id);
       if (!payload) return;
+      const t0 = Date.now();
       if (job.type === "scene_render")
-        await handleSceneRenderJob(job.id, payload.scene);
+        await handleSceneRenderJob(job.id, payload.scene, child, t0);
       else if (job.type === "video_assemble")
-        await handleVideoAssembleJob(job.id, payload.manifest);
+        await handleVideoAssembleJob(job.id, payload.manifest, child, t0);
     } catch (e) {
       logger.warn({ err: e }, "worker.tick.error");
     }
@@ -1235,7 +1287,12 @@ async function startWorkerLoop() {
   setInterval(tick, 750);
 }
 
-async function handleSceneRenderJob(jobId: string, scene: any) {
+async function handleSceneRenderJob(
+  jobId: string,
+  scene: any,
+  log = logger,
+  t0 = Date.now(),
+) {
   try {
     broadcastJobEvent({
       id: jobId,
@@ -1244,6 +1301,7 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       progress: { step: "creating_prediction", pct: 10 },
       attempt_count: await getJobAttemptCount(jobId),
     });
+    log.info({ step: "creating_prediction" }, "scene_render.start");
     const modelKey = String((scene as any).model ?? "");
     const version = MODEL_VERSIONS[modelKey];
     const mapped = buildModelInputs(
@@ -1265,6 +1323,7 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       prediction_id: pred.id,
       attempt_count: await getJobAttemptCount(jobId),
     });
+    log.info({ step: "polling", prediction_id: pred.id }, "scene_render.poll");
     let finalPred: any;
     try {
       finalPred = await waitForPrediction(pred.id);
@@ -1295,6 +1354,11 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       durationMs: durationMs ?? null,
       jobMeta: { response: finalPred },
     });
+    const duration = Date.now() - t0;
+    log.info(
+      { duration_ms: duration, run_id: finalPred?.id },
+      "scene_render.done",
+    );
     broadcastJobEvent({
       id: jobId,
       type: "scene_render",
@@ -1344,7 +1408,12 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
   }
 }
 
-async function handleVideoAssembleJob(jobId: string, manifest: any) {
+async function handleVideoAssembleJob(
+  jobId: string,
+  manifest: any,
+  log = logger,
+  t0 = Date.now(),
+) {
   try {
     broadcastJobEvent({
       id: jobId,
@@ -1353,6 +1422,7 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
       progress: { step: "creating_prediction", pct: 10 },
       attempt_count: await getJobAttemptCount(jobId),
     });
+    log.info({ step: "creating_prediction" }, "video_assemble.start");
     const prompt = buildVideoPrompt(manifest);
     let pred: any;
     try {
@@ -1371,6 +1441,10 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
         prediction_id: pred.id,
         attempt_count: await getJobAttemptCount(jobId),
       });
+      log.info(
+        { step: "polling", prediction_id: pred.id },
+        "video_assemble.poll",
+      );
       finalPred = await waitForPrediction(pred.id);
     } catch (e) {
       await scheduleRetry(jobId, e);
@@ -1397,6 +1471,11 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
       durationMs: durationMs ?? null,
       jobMeta: { response: finalPred },
     });
+    const duration = Date.now() - t0;
+    log.info(
+      { duration_ms: duration, run_id: finalPred?.id },
+      "video_assemble.done",
+    );
     broadcastJobEvent({
       id: jobId,
       type: "video_assemble",

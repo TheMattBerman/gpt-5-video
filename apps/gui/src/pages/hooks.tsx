@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { addJob, updateJob } from "../lib/jobs";
+import { fetchWithAuth } from "../lib/http";
 import { useToast } from "../components/Toast";
 
 type HookCorpusRow = {
@@ -354,7 +355,7 @@ export default function HooksPage() {
                   createdAt: Date.now(),
                 });
                 try {
-                  const res = await fetch(`${apiBase}/hooks/mine`, {
+                  const res = await fetchWithAuth(`${apiBase}/hooks/mine`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
@@ -637,7 +638,7 @@ export default function HooksPage() {
                     status: "queued",
                     createdAt: Date.now(),
                   });
-                  const res = await fetch(`${apiBase}/hooks/mine`, {
+                  const res = await fetchWithAuth(`${apiBase}/hooks/mine`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(parsed),
@@ -914,7 +915,7 @@ export default function HooksPage() {
                                   className="rounded border px-2 py-0.5"
                                   onClick={async () => {
                                     try {
-                                      const res = await fetch(
+                                      const res = await fetchWithAuth(
                                         `${apiBase}/hooks/synth/${h.id}`,
                                         {
                                           method: "PATCH",
@@ -983,7 +984,7 @@ export default function HooksPage() {
                       className="rounded bg-black px-3 py-1.5 text-white text-sm"
                       onClick={async () => {
                         try {
-                          const res = await fetch(
+                          const res = await fetchWithAuth(
                             `${apiBase}/hooks/synth/${synthEdit.row!.id}`,
                             {
                               method: "PATCH",

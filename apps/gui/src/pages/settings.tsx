@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [maxCost, setMaxCost] = useState<number>(10);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [token, setToken] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -25,6 +26,10 @@ export default function SettingsPage() {
         setLoading(false);
       }
     })();
+    try {
+      const t = localStorage.getItem("gpt5video_token") || "";
+      setToken(t);
+    } catch {}
   }, [apiBase]);
 
   async function save() {
@@ -115,6 +120,54 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+        </section>
+
+        <section className="rounded border bg-white p-4 space-y-3">
+          <div className="text-sm font-medium">Auth (JWT)</div>
+          <div className="text-xs text-gray-600">
+            When not in development, protected routes require a Bearer token.
+            Store a token locally to be sent with protected requests.
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            <label className="text-sm">
+              <span className="text-gray-700">Token</span>
+              <input
+                className="mt-1 w-full rounded border px-2 py-1 text-sm font-mono"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="paste token"
+              />
+            </label>
+            <div>
+              <button
+                onClick={() => {
+                  try {
+                    localStorage.setItem("gpt5video_token", token.trim());
+                    show({ title: "Token saved", variant: "success" });
+                  } catch {
+                    show({ title: "Save failed", variant: "error" });
+                  }
+                }}
+                className="rounded bg-black px-3 py-1.5 text-white text-sm mr-2"
+              >
+                Save token
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    localStorage.removeItem("gpt5video_token");
+                    setToken("");
+                    show({ title: "Token cleared", variant: "success" });
+                  } catch {
+                    show({ title: "Clear failed", variant: "error" });
+                  }
+                }}
+                className="rounded border px-3 py-1.5 text-sm"
+              >
+                Clear token
+              </button>
+            </div>
+          </div>
         </section>
       </div>
     </main>

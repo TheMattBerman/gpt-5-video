@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useToast } from "../components/Toast";
 import { useMemo, useState } from "react";
 import { ajv } from "@gpt5video/shared";
+import { fetchWithAuth } from "../lib/http";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import sceneSpecsLineSchema from "../../../../packages/schemas/schemas/scene_specs_line.schema.json";
@@ -49,7 +50,7 @@ export default function ScenesPlanPage() {
   async function submit() {
     const { valid, parsed } = validate(text);
     if (!valid || !parsed) return;
-    const res = await fetch(`${apiBase}/scenes/plan`, {
+    const res = await fetchWithAuth(`${apiBase}/scenes/plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(parsed),

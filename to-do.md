@@ -92,25 +92,29 @@ Acceptance (Week 2)
 
 ### Week 3 — Videos, audio modes, export, and hardening
 
-- [ ] Videos assembly with audio controls
-- [ ] Manifest builder (drag scenes, transitions, motion)
-- [x] Manifest builder increment: simple Up/Down reorder controls for `order`
+- [~] Videos assembly with audio controls
+- [~] Manifest builder (drag scenes, transitions, motion)
+  - [x] Manifest builder increment: simple Up/Down reorder controls for `order`
+  - [x] Replace Up/Down with drag-and-drop for `order` in `apps/gui/src/pages/video-assemble.tsx`
 - [x] Audio tab: mode selector (none|voiceover|dialogue), style, pace, language, volume
 - [x] Veo 3 voiceover support (audio.mode=voiceover; require vo_prompt) — API accepts audio modes per schema; SSE steps visible
 - [x] Dialogue mode support with `dialogue_timing` mapping — API accepts and validates; GUI form supports timing fields
 - [x] Status and cost badges on Video Assemble via job detail polling (estimate + actual)
-- [ ] 720p/1080p preview with transport controls and thumbnails
+- [~] 720p/1080p preview with transport controls and thumbnails
+  - [x] Add richer player + client-side filmstrip in `video-assemble.tsx` and `renders.tsx`
 - [x] SSE UI: Scenes Render/Video Assemble show step feed + attempt_count; Renders shows latest step
-- [ ] Review & Export
+- [~] Review & Export
 - [~] Checklist: tone/claims/assets (stub page added)
-- [~] Export presets: 9:16, 1:1, 16:9; S3 handoff or download (stubs + S3 preview wired)
+- [x] Export presets: 9:16, 1:1, 16:9; compute S3 keys; Copy key and Open (signed) in `review-export.tsx`
 - [x] CSV report (costs + basic performance placeholders)
-- [ ] Security & access
+- [~] Security & access
   - [ ] JWT auth with roles; signed URLs for uploads/downloads
+  - [x] Minimal JWT middleware scaffold in API (non-dev, protects mutating routes); token field in GUI settings; attach Authorization header in protected fetches
   - [x] Guardrails: max cost per batch, concurrency caps (numeric range validation; optimistic UI updates; dashboard reflects changes without reload)
-- [ ] Observability and QA
+- [~] Observability and QA
   - [ ] Logs/metrics/traces; alerting on error spikes
-  - [ ] E2E happy-path test; seed-lock rerun test; failure recovery test
+  - [~] E2E happy-path test; seed-lock rerun test; failure recovery test
+    - [x] Minimal Playwright smoke test: dashboard tiles render and SSE ping updates
 
 Acceptance (Week 3)
 

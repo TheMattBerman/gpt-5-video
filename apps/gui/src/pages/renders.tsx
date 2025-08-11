@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
+import { fetchWithAuth } from "../lib/http";
 
 type Job = {
   id: string;
@@ -28,6 +29,8 @@ export default function RendersPage() {
   const [tick, setTick] = useState<number>(0);
   const [compareAUrl, setCompareAUrl] = useState<string | null>(null);
   const [compareBUrl, setCompareBUrl] = useState<string | null>(null);
+  const [compareAThumbs, setCompareAThumbs] = useState<string[]>([]);
+  const [compareBThumbs, setCompareBThumbs] = useState<string[]>([]);
   const [drawerJobId, setDrawerJobId] = useState<string | null>(null);
   const [drawerJob, setDrawerJob] = useState<any | null>(null);
   const [lastEventByJob, setLastEventByJob] = useState<
@@ -149,11 +152,27 @@ export default function RendersPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded border p-1">
                   {/\.mp4|\.webm/i.test(compareAUrl) ? (
-                    <video
-                      src={compareAUrl}
-                      controls
-                      className="w-full max-h-80 object-contain"
-                    />
+                    <div>
+                      <video
+                        src={compareAUrl}
+                        controls
+                        className="w-full max-h-80 object-contain"
+                        onLoadedData={() =>
+                          generateThumbs(compareAUrl, setCompareAThumbs)
+                        }
+                      />
+                      {compareAThumbs.length > 0 && (
+                        <div className="mt-1 flex items-center gap-2 overflow-x-auto">
+                          {compareAThumbs.map((u, i) => (
+                            <img
+                              key={i}
+                              src={u}
+                              className="h-12 w-auto rounded border"
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <img
                       src={compareAUrl}
@@ -164,11 +183,27 @@ export default function RendersPage() {
                 </div>
                 <div className="rounded border p-1">
                   {/\.mp4|\.webm/i.test(compareBUrl) ? (
-                    <video
-                      src={compareBUrl}
-                      controls
-                      className="w-full max-h-80 object-contain"
-                    />
+                    <div>
+                      <video
+                        src={compareBUrl}
+                        controls
+                        className="w-full max-h-80 object-contain"
+                        onLoadedData={() =>
+                          generateThumbs(compareBUrl, setCompareBThumbs)
+                        }
+                      />
+                      {compareBThumbs.length > 0 && (
+                        <div className="mt-1 flex items-center gap-2 overflow-x-auto">
+                          {compareBThumbs.map((u, i) => (
+                            <img
+                              key={i}
+                              src={u}
+                              className="h-12 w-auto rounded border"
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <img
                       src={compareBUrl}
@@ -331,7 +366,7 @@ export default function RendersPage() {
                         className="rounded border px-2 py-1 text-xs"
                         onClick={async () => {
                           try {
-                            const res = await fetch(
+                            const res = await fetchWithAuth(
                               `${apiBase}/jobs/${j.id}/cancel`,
                               { method: "POST" },
                             );
@@ -364,11 +399,14 @@ export default function RendersPage() {
                       className="rounded border px-2 py-1 text-xs"
                       onClick={async () => {
                         try {
-                          await fetch(`${apiBase}/jobs/${j.id}/decision`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ decision: "approved" }),
-                          });
+                          await fetchWithAuth(
+                            `${apiBase}/jobs/${j.id}/decision`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ decision: "approved" }),
+                            },
+                          );
                           show({ title: "Approved", variant: "success" });
                         } catch {
                           show({ title: "Approve failed", variant: "error" });
@@ -382,14 +420,17 @@ export default function RendersPage() {
                       onClick={async () => {
                         const note = prompt("Reason?") || "";
                         try {
-                          await fetch(`${apiBase}/jobs/${j.id}/decision`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              decision: "rejected",
-                              note,
-                            }),
-                          });
+                          await fetchWithAuth(
+                            `${apiBase}/jobs/${j.id}/decision`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                decision: "rejected",
+                                note,
+                              }),
+                            },
+                          );
                           show({ title: "Rejected", variant: "success" });
                         } catch {
                           show({ title: "Reject failed", variant: "error" });
@@ -404,7 +445,7 @@ export default function RendersPage() {
                         try {
                           const payload = await promptRerunPayload(j);
                           if (!payload) return;
-                          const res = await fetch(
+                          const res = await fetchWithAuth(
                             `${apiBase}/jobs/${j.id}/rerun`,
                             {
                               method: "POST",
@@ -443,7 +484,7 @@ export default function RendersPage() {
                           if (!payload) return;
                           if (j.seed && payload?.model_inputs)
                             payload.model_inputs.seed = j.seed;
-                          const res = await fetch(
+                          const res = await fetchWithAuth(
                             `${apiBase}/jobs/${j.id}/rerun`,
                             {
                               method: "POST",
@@ -486,7 +527,7 @@ export default function RendersPage() {
                             payload.model_inputs.seed = Math.floor(
                               Math.random() * 1_000_000_000,
                             );
-                          const res = await fetch(
+                          const res = await fetchWithAuth(
                             `${apiBase}/jobs/${j.id}/rerun`,
                             {
                               method: "POST",
@@ -652,4 +693,46 @@ function promptRerunPayload(job: Job): Promise<any | null> {
       resolve(null);
     }
   });
+}
+
+async function generateThumbs(
+  url: string,
+  set: (arr: string[]) => void,
+  count = 5,
+) {
+  try {
+    const video = document.createElement("video");
+    video.src = url;
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = resolve;
+      video.onerror = reject as any;
+    });
+    const duration = isFinite(video.duration) ? video.duration : 0;
+    if (!duration) return set([]);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return set([]);
+    const width = 200;
+    const height = Math.round(width * (9 / 16));
+    canvas.width = width;
+    canvas.height = height;
+    const captures: string[] = [];
+    for (let i = 1; i <= count; i++) {
+      const t = (duration * i) / (count + 1);
+      await new Promise<void>((resolve) => {
+        const onSeeked = () => {
+          ctx.drawImage(video, 0, 0, width, height);
+          captures.push(canvas.toDataURL("image/jpeg", 0.7));
+          resolve();
+        };
+        video.currentTime = t;
+        video.onseeked = onSeeked;
+      });
+    }
+    set(captures);
+  } catch {
+    set([]);
+  }
 }

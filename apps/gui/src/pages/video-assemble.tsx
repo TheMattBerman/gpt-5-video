@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import videoManifestSchema from "../../../../packages/schemas/schemas/video_manifest.schema.json";
 import { ajv } from "@gpt5video/shared";
 import { addJob, updateJob } from "../lib/jobs";
+import { fetchWithAuth } from "../lib/http";
 import { useToast } from "../components/Toast";
 
 export default function VideoAssemblePage() {
@@ -31,6 +32,8 @@ export default function VideoAssemblePage() {
   const validate = useMemo(() => ajv.compile(videoManifestSchema as any), []);
   const { show } = useToast();
   const [order, setOrder] = useState<string>("hook1_s1, hook1_s2");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [filmstripUrls, setFilmstripUrls] = useState<string[]>([]);
   const [transitions, setTransitions] = useState<string>("hard_cuts");
   const [motion, setMotion] = useState<string>("subtle parallax");
   // Audio tab fields
@@ -129,7 +132,7 @@ export default function VideoAssemblePage() {
       status: "queued",
       createdAt: Date.now(),
     });
-    const res = await fetch(`${apiBase}/videos/assemble`, {
+    const res = await fetchWithAuth(`${apiBase}/videos/assemble`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ manifest }),
@@ -211,6 +214,46 @@ export default function VideoAssemblePage() {
       ? [resp.data.output]
       : [];
 
+  // Filmstrip generation for first video output
+  async function generateFilmstrip(url: string) {
+    try {
+      const video = document.createElement("video");
+      video.src = url;
+      video.crossOrigin = "anonymous";
+      video.muted = true;
+      await new Promise((resolve, reject) => {
+        video.onloadedmetadata = resolve;
+        video.onerror = reject as any;
+      });
+      const duration = isFinite(video.duration) ? video.duration : 0;
+      if (!duration) return setFilmstripUrls([]);
+      const thumbs = 5;
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return setFilmstripUrls([]);
+      const width = 240;
+      const height = Math.round(width * (9 / 16));
+      canvas.width = width;
+      canvas.height = height;
+      const captures: string[] = [];
+      for (let i = 1; i <= thumbs; i++) {
+        const t = (duration * i) / (thumbs + 1);
+        await new Promise<void>((resolve) => {
+          const onSeeked = () => {
+            ctx.drawImage(video, 0, 0, width, height);
+            captures.push(canvas.toDataURL("image/jpeg", 0.7));
+            resolve();
+          };
+          video.currentTime = t;
+          video.onseeked = onSeeked;
+        });
+      }
+      setFilmstripUrls(captures);
+    } catch {
+      setFilmstripUrls([]);
+    }
+  }
+
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
@@ -238,25 +281,28 @@ export default function VideoAssemblePage() {
               />
               {!!orderArray.length && (
                 <div className="mt-2 space-y-1">
+                  <div className="text-xs text-gray-600 mb-1">
+                    Drag to reorder
+                  </div>
                   {orderArray.map((id, i) => (
-                    <div key={`${id}-${i}`} className="flex items-center gap-2">
-                      <span className="font-mono">{id}</span>
-                      <button
-                        type="button"
-                        className="rounded border px-1 text-[10px]"
-                        onClick={() => moveOrder(i, -1)}
-                        disabled={i === 0}
-                      >
-                        Up
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded border px-1 text-[10px]"
-                        onClick={() => moveOrder(i, 1)}
-                        disabled={i === orderArray.length - 1}
-                      >
-                        Down
-                      </button>
+                    <div
+                      key={`${id}-${i}`}
+                      className={`flex items-center gap-2 rounded border px-2 py-1 ${dragIndex === i ? "bg-gray-100" : "bg-white"}`}
+                      draggable
+                      onDragStart={() => setDragIndex(i)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (dragIndex === null || dragIndex === i) return;
+                        const next = [...orderArray];
+                        const [moved] = next.splice(dragIndex, 1);
+                        next.splice(i, 0, moved);
+                        setDragIndex(i);
+                        setOrder(next.join(", "));
+                      }}
+                      onDragEnd={() => setDragIndex(null)}
+                    >
+                      <span className="cursor-grab select-none">☰</span>
+                      <span className="font-mono flex-1">{id}</span>
                     </div>
                   ))}
                 </div>
@@ -549,11 +595,26 @@ export default function VideoAssemblePage() {
               {outputs.map((u, i) => (
                 <div key={i} className="rounded border p-2">
                   {/\.mp4|\.webm/i.test(u) ? (
-                    <video
-                      src={u}
-                      controls
-                      className="max-h-60 w-full object-contain"
-                    />
+                    <div>
+                      <video
+                        src={u}
+                        controls
+                        className="w-full max-h-[480px] object-contain"
+                        onLoadedData={() => generateFilmstrip(u)}
+                      />
+                      {filmstripUrls.length > 0 && (
+                        <div className="mt-2 flex items-center gap-2 overflow-x-auto">
+                          {filmstripUrls.map((fu, fi) => (
+                            <img
+                              key={fi}
+                              src={fu}
+                              alt={`thumb-${fi}`}
+                              className="h-16 w-auto rounded border"
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ) : /\.png|\.jpg|\.jpeg|\.gif/i.test(u) ? (
                     <img
                       src={u}

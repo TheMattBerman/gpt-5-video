@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import sceneSpecsLineSchema from "../../../../packages/schemas/schemas/scene_specs_line.schema.json";
 import { ajv } from "@gpt5video/shared";
 import { addJob, updateJob } from "../lib/jobs";
+import { fetchWithAuth } from "../lib/http";
 import { useToast } from "../components/Toast";
 
 export default function ScenesRenderPage() {
@@ -57,7 +58,7 @@ export default function ScenesRenderPage() {
       status: "queued",
       createdAt: Date.now(),
     });
-    const res = await fetch(`${apiBase}/scenes/render`, {
+    const res = await fetchWithAuth(`${apiBase}/scenes/render`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scene }),
@@ -102,7 +103,7 @@ export default function ScenesRenderPage() {
         model_inputs: { ...(scene.model_inputs || {}), seed },
       };
       try {
-        const res = await fetch(`${apiBase}/scenes/render`, {
+        const res = await fetchWithAuth(`${apiBase}/scenes/render`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ scene: payload }),
