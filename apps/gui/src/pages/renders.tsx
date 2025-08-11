@@ -30,6 +30,9 @@ export default function RendersPage() {
   const [compareBUrl, setCompareBUrl] = useState<string | null>(null);
   const [drawerJobId, setDrawerJobId] = useState<string | null>(null);
   const [drawerJob, setDrawerJob] = useState<any | null>(null);
+  const [lastEventByJob, setLastEventByJob] = useState<
+    Record<string, { step?: string; attempt_count?: number; status?: string }>
+  >({});
 
   const fetchData = async () => {
     try {
@@ -59,7 +62,22 @@ export default function RendersPage() {
 
   useEffect(() => {
     const es = new EventSource(`${apiBase}/jobs/stream`);
-    const onJob = () => setTick((t) => t + 1);
+    const onJob = (ev: MessageEvent) => {
+      setTick((t) => t + 1);
+      try {
+        const evt = JSON.parse((ev as MessageEvent).data || "{}");
+        if (evt && evt.id) {
+          setLastEventByJob((prev) => ({
+            ...prev,
+            [evt.id]: {
+              step: evt?.progress?.step,
+              attempt_count: evt?.attempt_count,
+              status: evt?.status,
+            },
+          }));
+        }
+      } catch {}
+    };
     es.addEventListener("job", onJob as any);
     return () => {
       es.removeEventListener("job", onJob as any);
@@ -180,6 +198,17 @@ export default function RendersPage() {
                             ? "processing"
                             : j.status}
                       </span>
+                      {lastEventByJob[j.id]?.step && (
+                        <span className="px-1.5 py-0.5 rounded bg-gray-50 text-gray-800">
+                          {lastEventByJob[j.id].step}
+                        </span>
+                      )}
+                      {typeof lastEventByJob[j.id]?.attempt_count ===
+                        "number" && (
+                        <span className="px-1 py-0.5 rounded bg-gray-100">
+                          #{lastEventByJob[j.id]!.attempt_count}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {typeof (j as any).cost_estimate_usd === "number" && (

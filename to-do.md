@@ -77,10 +77,10 @@ Acceptance (Week 1)
   - [x] Character upload + profile persist; stability test (3 prompts) API; GUI compare and local seed lock
   - [x] Scenes page: Monaco JSON editor with schema autocomplete and diff
   - [x] Audio panel per scene (dialogue or VO fields present)
-- [~] Renders workflow
-  - [~] Scene image generation queue; grid view with compare (DB-backed queue + in-process worker added; SSE reflects status); cancel for queued jobs; batch queue action to queue 15 renders
-  - [x] Approve/reject, re-run with same/new seed
-  - [x] Cost meter (estimate + actual) for images
+- [x] Renders workflow
+- [~] Scene image generation queue; grid view with compare (DB-backed queue + in-process worker added; SSE reflects status); cancel for queued jobs; batch queue action to queue 15 renders
+- [x] Approve/reject, re-run with same/new seed
+- [x] Cost meter (estimate + actual) for images
 - [~] Telemetry & reliability
   - [x] Cost ledger for GPT + Replicate per asset (GPT placeholder added for synth; provider splits and run meta captured)
   - [x] Retry/backoff with jitter, error categorization, idempotency keys; KPIs include processing vs queued and avg queue wait
@@ -93,19 +93,21 @@ Acceptance (Week 2)
 ### Week 3 — Videos, audio modes, export, and hardening
 
 - [ ] Videos assembly with audio controls
-  - [ ] Manifest builder (drag scenes, transitions, motion)
-  - [x] Audio tab: mode selector (none|voiceover|dialogue), style, pace, language, volume
-  - [x] Veo 3 voiceover support (audio.mode=voiceover; require vo_prompt) — API accepts audio modes per schema; SSE steps visible
-  - [x] Dialogue mode support with `dialogue_timing` mapping — API accepts and validates; GUI form supports timing fields
-  - [x] Status and cost badges on Video Assemble via job detail polling (estimate + actual)
-  - [ ] 720p/1080p preview with transport controls and thumbnails
+- [ ] Manifest builder (drag scenes, transitions, motion)
+- [x] Manifest builder increment: simple Up/Down reorder controls for `order`
+- [x] Audio tab: mode selector (none|voiceover|dialogue), style, pace, language, volume
+- [x] Veo 3 voiceover support (audio.mode=voiceover; require vo_prompt) — API accepts audio modes per schema; SSE steps visible
+- [x] Dialogue mode support with `dialogue_timing` mapping — API accepts and validates; GUI form supports timing fields
+- [x] Status and cost badges on Video Assemble via job detail polling (estimate + actual)
+- [ ] 720p/1080p preview with transport controls and thumbnails
+- [x] SSE UI: Scenes Render/Video Assemble show step feed + attempt_count; Renders shows latest step
 - [ ] Review & Export
-  - [~] Checklist: tone/claims/assets (stub page added)
-  - [~] Export presets: 9:16, 1:1, 16:9; S3 handoff or download (stubs + S3 preview wired)
-  - [ ] CSV report (costs + basic performance placeholders)
+- [~] Checklist: tone/claims/assets (stub page added)
+- [~] Export presets: 9:16, 1:1, 16:9; S3 handoff or download (stubs + S3 preview wired)
+- [x] CSV report (costs + basic performance placeholders)
 - [ ] Security & access
   - [ ] JWT auth with roles; signed URLs for uploads/downloads
-  - [~] Guardrails: max cost per batch, concurrency caps (numeric range validation; optimistic UI updates; dashboard reflects changes without reload)
+  - [x] Guardrails: max cost per batch, concurrency caps (numeric range validation; optimistic UI updates; dashboard reflects changes without reload)
 - [ ] Observability and QA
   - [ ] Logs/metrics/traces; alerting on error spikes
   - [ ] E2E happy-path test; seed-lock rerun test; failure recovery test
@@ -156,6 +158,7 @@ Acceptance (Week 3)
 Notes:
 
 - [~] Replicate default model versions parameterized; placeholders replaced with env-overridable pinned IDs. Final stable IDs to be set in env for prod.
+  - [x] Warn once when default placeholder versions are used (no env overrides)
 
 ### 5) Workers
 
@@ -171,7 +174,7 @@ Notes:
 - [x] Hooks: source setup, mining progress, corpus table, synthesis review
 - [x] Character: upload, model, aspect ratio, mask rules, stability test, seed lock
 - [x] Scenes: Monaco editor with schema autocomplete + diff; audio panel
-- [ ] Renders: grid, compare, approve/reject, re-run with seed controls
+- [x] Renders: grid, compare, approve/reject, re-run with seed controls
 - [~] Videos: manifest builder; audio tab; render + preview player
   - [x] Manifest builder stub UI populates JSON; validation and submit (audio disabled)
 - [ ] Review & Export: checklist, presets, S3/download, CSV report

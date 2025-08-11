@@ -463,6 +463,18 @@ export async function getJobAttemptCount(id: string) {
   return Number(rows[0]?.attempt_count || 0);
 }
 
+export async function sumEstimatedCostsForActiveJobs() {
+  const { rows } = await pool.query(
+    `select coalesce(sum(c.amount_usd), 0)::float as s
+     from jobs j
+     join cost_ledger c on c.job_id = j.id
+     where j.status in ('queued','processing')
+       and (c.meta->>'kind') = 'estimate'
+       and j.type in ('scene_render','video_assemble')`,
+  );
+  return Number(rows[0]?.s || 0);
+}
+
 export async function insertHookCorpusItems(
   mineId: string,
   items: Array<{

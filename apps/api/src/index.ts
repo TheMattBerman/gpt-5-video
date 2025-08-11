@@ -30,6 +30,7 @@ import {
   insertCharacterSeeds,
   pool,
   getJobAttemptCount,
+  sumEstimatedCostsForActiveJobs,
 } from "./db";
 import {
   createS3Client,
@@ -675,6 +676,37 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
         .status(400)
         .json({ error: `Unsupported model: ${String((scene as any).model)}` });
 
+    // Guardrail: cost cap before enqueue
+    const estimate = estimateImageCost(
+      modelKey,
+      (scene as any).model_inputs || {},
+    );
+    const activeSum = await sumEstimatedCostsForActiveJobs();
+    if (activeSum + estimate > guardrails.max_cost_per_batch_usd) {
+      const jobId = `sceneimages_${Date.now()}`;
+      await insertJob({
+        id: jobId,
+        type: "scene_render",
+        status: "failed",
+        startedAt: new Date(),
+        payload: { request: scene },
+      });
+      await updateJob({
+        id: jobId,
+        error: "max_cost_exceeded",
+        errorCategory: "guardrail",
+        jobMeta: { rejected_by: "cost_cap", estimate },
+        completedAt: new Date(),
+      });
+      broadcastJobEvent({
+        id: jobId,
+        type: "scene_render",
+        status: "failed",
+        progress: { step: "rejected_guardrail", pct: 0 },
+      });
+      return res.status(409).json({ error: "max_cost_exceeded" });
+    }
+
     const jobId = `sceneimages_${Date.now()}`;
     await enqueueJob({
       id: jobId,
@@ -685,14 +717,10 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
     });
     // Cost estimate for image render
     try {
-      const modelKey = String((scene as any).model ?? "");
       await insertCost({
         jobId: jobId,
         provider: "replicate",
-        amountUsd: estimateImageCost(
-          modelKey,
-          (scene as any).model_inputs || {},
-        ),
+        amountUsd: estimate,
         meta: { route: "scenes.render", kind: "estimate" },
       });
     } catch {}
@@ -746,6 +774,33 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
         details: validateVideoManifest.errors,
       });
     }
+    const estimate = estimateVideoCost(manifest);
+    const activeSum = await sumEstimatedCostsForActiveJobs();
+    if (activeSum + estimate > guardrails.max_cost_per_batch_usd) {
+      const jobId = `video_${Date.now()}`;
+      await insertJob({
+        id: jobId,
+        type: "video_assemble",
+        status: "failed",
+        startedAt: new Date(),
+        payload: { request: manifest },
+      });
+      await updateJob({
+        id: jobId,
+        error: "max_cost_exceeded",
+        errorCategory: "guardrail",
+        jobMeta: { rejected_by: "cost_cap", estimate },
+        completedAt: new Date(),
+      });
+      broadcastJobEvent({
+        id: jobId,
+        type: "video_assemble",
+        status: "failed",
+        progress: { step: "rejected_guardrail", pct: 0 },
+      });
+      return res.status(409).json({ error: "max_cost_exceeded" });
+    }
+
     const jobId = `video_${Date.now()}`;
     await enqueueJob({
       id: jobId,
@@ -759,7 +814,7 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
       await insertCost({
         jobId,
         provider: "replicate",
-        amountUsd: estimateVideoCost(manifest),
+        amountUsd: estimate,
         meta: { route: "videos.assemble", kind: "estimate" },
       });
     } catch {}
@@ -783,6 +838,66 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
       }
     } catch {}
     res.status(500).json({ error: "video_assemble_failed" });
+  }
+});
+
+// CSV export for today's renders and videos
+app.get("/export/report.csv", async (_req: Request, res: Response) => {
+  try {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const { rows } = await pool.query(
+      `select j.id as job_id,
+              j.type,
+              j.status,
+              j.model_version,
+              j.seed,
+              j.duration_ms,
+              j.created_at,
+              coalesce(sum(c.amount_usd) filter (where (c.meta->>'kind') = 'estimate'), 0) as cost_estimate_usd,
+              coalesce(sum(c.amount_usd) filter (where (c.meta->>'kind') = 'actual'), 0) as cost_actual_usd
+       from jobs j
+       left join cost_ledger c on c.job_id = j.id
+       where j.created_at >= $1 and j.type in ('scene_render','video_assemble')
+       group by j.id
+       order by j.created_at desc`,
+      [start.toISOString()],
+    );
+    const header = [
+      "job_id",
+      "type",
+      "status",
+      "model_version",
+      "seed",
+      "duration_ms",
+      "cost_estimate_usd",
+      "cost_actual_usd",
+      "created_at",
+    ];
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      const vals = [
+        r.job_id,
+        r.type,
+        r.status,
+        r.model_version || "",
+        r.seed != null ? String(r.seed) : "",
+        r.duration_ms != null ? String(r.duration_ms) : "",
+        Number(r.cost_estimate_usd || 0).toFixed(2),
+        Number(r.cost_actual_usd || 0).toFixed(2),
+        new Date(r.created_at).toISOString(),
+      ];
+      // rudimentary CSV escaping for commas/quotes
+      const escaped = vals.map((v) =>
+        /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : String(v),
+      );
+      lines.push(escaped.join(","));
+    }
+    const csv = lines.join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.status(200).send(csv);
+  } catch (err) {
+    res.status(500).json({ error: "report_failed" });
   }
 });
 

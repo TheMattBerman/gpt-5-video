@@ -16,6 +16,21 @@ export class ReplicateClient {
   private readonly baseUrl = "https://api.replicate.com/v1";
   constructor(private readonly apiToken: string) {
     if (!apiToken) throw new Error("Missing REPLICATE_API_TOKEN");
+    // Warn once if default placeholder versions will be used (env not set)
+    // eslint-disable-next-line no-console
+    if (
+      !process.env.REPLICATE_IDEOGRAM_CHARACTER_VERSION ||
+      !process.env.REPLICATE_IMAGEN4_VERSION ||
+      !process.env.REPLICATE_VEO3_VERSION
+    ) {
+      if (!(globalThis as any).__gpt5video_replicate_version_warned) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[gpt5video] Using default placeholder Replicate model versions. Set REPLICATE_*_VERSION env vars to override.",
+        );
+        (globalThis as any).__gpt5video_replicate_version_warned = true;
+      }
+    }
   }
 
   async createPrediction<TInput extends Record<string, unknown>>(

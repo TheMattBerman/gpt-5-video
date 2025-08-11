@@ -136,6 +136,19 @@ export default function ReviewExportPage() {
             </div>
           )}
         </section>
+
+        <section className="rounded border bg-white p-4">
+          <div className="text-sm font-medium mb-2">Report</div>
+          <div className="text-sm text-gray-700 mb-2">
+            Download today's renders/videos CSV.
+          </div>
+          <a
+            href={`${apiBase}/export/report.csv`}
+            className="inline-flex items-center rounded border px-3 py-1.5 text-sm underline"
+          >
+            Download report (CSV)
+          </a>
+        </section>
       </div>
     </main>
   );

@@ -20,6 +20,14 @@ export default function VideoAssemblePage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobDetail, setJobDetail] = useState<any | null>(null);
   const [tick, setTick] = useState<number>(0);
+  const [sseEvents, setSseEvents] = useState<
+    Array<{
+      ts: number;
+      step?: string;
+      status?: string;
+      attempt_count?: number;
+    }>
+  >([]);
   const validate = useMemo(() => ajv.compile(videoManifestSchema as any), []);
   const { show } = useToast();
   const [order, setOrder] = useState<string>("hook1_s1, hook1_s2");
@@ -97,6 +105,20 @@ export default function VideoAssemblePage() {
     setText(pretty);
   }
 
+  const orderArray = order
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  function moveOrder(idx: number, dir: -1 | 1) {
+    const next = [...orderArray];
+    const j = idx + dir;
+    if (j < 0 || j >= next.length) return;
+    const tmp = next[idx];
+    next[idx] = next[j];
+    next[j] = tmp;
+    setOrder(next.join(", "));
+  }
+
   async function submit() {
     const manifest = validateText(text);
     if (!manifest) return;
@@ -144,7 +166,25 @@ export default function VideoAssemblePage() {
   useEffect(() => {
     if (!jobId) return;
     const es = new EventSource(`${apiBase}/jobs/stream`);
-    const onJob = () => setTick((t) => t + 1);
+    const onJob = (ev: MessageEvent) => {
+      setTick((t) => t + 1);
+      try {
+        const evt = JSON.parse((ev as MessageEvent).data || "{}");
+        if (evt && evt.id === jobId) {
+          setSseEvents((prev) =>
+            [
+              ...prev,
+              {
+                ts: Date.now(),
+                step: evt?.progress?.step,
+                status: evt?.status,
+                attempt_count: evt?.attempt_count,
+              },
+            ].slice(-25),
+          );
+        }
+      } catch {}
+    };
     es.addEventListener("job", onJob as any);
     return () => {
       es.removeEventListener("job", onJob as any);
@@ -196,6 +236,31 @@ export default function VideoAssemblePage() {
                 value={order}
                 onChange={(e) => setOrder(e.target.value)}
               />
+              {!!orderArray.length && (
+                <div className="mt-2 space-y-1">
+                  {orderArray.map((id, i) => (
+                    <div key={`${id}-${i}`} className="flex items-center gap-2">
+                      <span className="font-mono">{id}</span>
+                      <button
+                        type="button"
+                        className="rounded border px-1 text-[10px]"
+                        onClick={() => moveOrder(i, -1)}
+                        disabled={i === 0}
+                      >
+                        Up
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border px-1 text-[10px]"
+                        onClick={() => moveOrder(i, 1)}
+                        disabled={i === orderArray.length - 1}
+                      >
+                        Down
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </label>
             <label>
               <div className="text-gray-700">Transitions</div>
@@ -438,6 +503,40 @@ export default function VideoAssemblePage() {
                         </span>
                       )}
                   </div>
+                  {jobId && (
+                    <div className="mt-2">
+                      <div className="text-xs text-gray-600 mb-1">
+                        Live status
+                      </div>
+                      <div className="space-y-1 text-xs">
+                        {sseEvents.map((e, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-gray-500 w-28">
+                              {new Date(e.ts).toLocaleTimeString()}
+                            </span>
+                            {typeof e.attempt_count === "number" && (
+                              <span className="rounded bg-gray-100 px-1 py-0.5">
+                                #{e.attempt_count}
+                              </span>
+                            )}
+                            {e.step && (
+                              <span className="rounded bg-gray-50 px-1.5 py-0.5 text-gray-800">
+                                {e.step}
+                              </span>
+                            )}
+                            {e.status && (
+                              <span className="text-gray-600">{e.status}</span>
+                            )}
+                          </div>
+                        ))}
+                        {sseEvents.length === 0 && (
+                          <div className="text-gray-500">
+                            Waiting for events…
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

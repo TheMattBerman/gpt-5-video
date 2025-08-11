@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import sceneSpecsLineSchema from "../../../../packages/schemas/schemas/scene_specs_line.schema.json";
@@ -17,6 +17,15 @@ export default function ScenesRenderPage() {
   );
   const [errors, setErrors] = useState<string[]>([]);
   const [resp, setResp] = useState<any>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [sseEvents, setSseEvents] = useState<
+    Array<{
+      ts: number;
+      step?: string;
+      status?: string;
+      attempt_count?: number;
+    }>
+  >([]);
   const validate = useMemo(() => ajv.compile(sceneSpecsLineSchema as any), []);
   const { show } = useToast();
 
@@ -56,6 +65,7 @@ export default function ScenesRenderPage() {
     const data = await res.json();
     setResp({ ok: res.ok, data });
     if (res.ok) {
+      if (typeof data?.id === "string") setJobId(data.id);
       updateJob(provisionalId, {
         status: "succeeded",
         completedAt: Date.now(),
@@ -121,6 +131,32 @@ export default function ScenesRenderPage() {
     : resp?.data?.output
       ? [resp.data.output]
       : [];
+
+  // Subscribe to SSE and collect step feed for this job
+  useEffect(() => {
+    if (!jobId) return;
+    const es = new EventSource(`${apiBase}/jobs/stream`);
+    const onJob = (ev: MessageEvent) => {
+      try {
+        const evt = JSON.parse(ev.data || "{}");
+        if (evt && evt.id === jobId) {
+          const step: string | undefined = evt?.progress?.step;
+          const status: string | undefined = evt?.status;
+          const attempt_count: number | undefined = evt?.attempt_count;
+          setSseEvents((prev) =>
+            [...prev, { ts: Date.now(), step, status, attempt_count }].slice(
+              -25,
+            ),
+          );
+        }
+      } catch {}
+    };
+    es.addEventListener("job", onJob as any);
+    return () => {
+      es.removeEventListener("job", onJob as any);
+      es.close();
+    };
+  }, [apiBase, jobId]);
 
   return (
     <main className="min-h-dvh bg-gray-50">
@@ -228,6 +264,40 @@ export default function ScenesRenderPage() {
             </div>
           </div>
         </section>
+        {jobId && (
+          <section className="rounded border bg-white p-4">
+            <div className="text-sm font-medium mb-2">Live status</div>
+            <div className="flex items-center gap-2 text-xs mb-2">
+              <span className="text-gray-600">job</span>
+              <span className="font-mono">{jobId}</span>
+            </div>
+            <div className="space-y-1 text-xs">
+              {sseEvents.map((e, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-gray-500 w-28">
+                    {new Date(e.ts).toLocaleTimeString()}
+                  </span>
+                  {typeof e.attempt_count === "number" && (
+                    <span className="rounded bg-gray-100 px-1 py-0.5">
+                      #{e.attempt_count}
+                    </span>
+                  )}
+                  {e.step && (
+                    <span className="rounded bg-gray-50 px-1.5 py-0.5 text-gray-800">
+                      {e.step}
+                    </span>
+                  )}
+                  {e.status && (
+                    <span className="text-gray-600">{e.status}</span>
+                  )}
+                </div>
+              ))}
+              {sseEvents.length === 0 && (
+                <div className="text-gray-500">Waiting for events…</div>
+              )}
+            </div>
+          </section>
+        )}
         {!!outputs.length && (
           <section className="rounded border bg-white p-4">
             <div className="text-sm font-medium mb-2">Outputs</div>
