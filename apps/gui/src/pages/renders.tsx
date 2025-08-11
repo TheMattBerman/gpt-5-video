@@ -10,6 +10,7 @@ type Job = {
   model_version?: string;
   seed?: number | null;
   duration_ms?: number | null;
+  cost_usd?: number | null;
   created_at?: string;
   artifacts?: Array<{ id: number; type?: string; url?: string; key?: string }>;
 };
@@ -115,6 +116,14 @@ export default function RendersPage() {
                     <div className="text-xs text-gray-600">
                       duration_ms:{" "}
                       <span className="font-mono">{String(j.duration_ms)}</span>
+                    </div>
+                  )}
+                  {typeof (j as any).cost_usd === "number" && (
+                    <div className="text-xs text-gray-600">
+                      cost_usd:{" "}
+                      <span className="font-mono">
+                        {Number((j as any).cost_usd).toFixed(2)}
+                      </span>
                     </div>
                   )}
                   {!!j.artifacts?.length && (

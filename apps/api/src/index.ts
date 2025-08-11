@@ -112,6 +112,19 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
     run_id: (req as any).id || undefined,
     request: body,
     status: "queued",
+    items: ((): any[] => {
+      const sample = [
+        {
+          platform: "tiktok",
+          author: "@creator",
+          url: "https://example.com/post/1",
+          caption_or_transcript: "Everyone is wrong about CAC...",
+          metrics: { views: 1000 },
+        },
+      ];
+      hookCorpusStore.set(jobId, sample);
+      return sample;
+    })(),
   });
 });
 
@@ -152,7 +165,29 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
     run_id: (req as any).id || undefined,
     request: body,
     status: "queued",
+    items: ((): any[] => {
+      const sample = [
+        {
+          hook_text: "Your CAC is not high, your loop is broken.",
+          angle: "contrarian",
+          icp: "DTC operators",
+          inspiration_url: "https://example.com/post/1",
+        },
+      ];
+      hookSynthStore.set(jobId, sample);
+      return sample;
+    })(),
   });
+});
+
+app.get("/hooks/corpus/:id", (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  res.json({ items: hookCorpusStore.get(id) || [] });
+});
+
+app.get("/hooks/synth/:id", (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  res.json({ items: hookSynthStore.get(id) || [] });
 });
 
 app.post("/character/profile", (req: Request, res: Response) => {
@@ -521,6 +556,10 @@ function broadcastJobEvent(evt: any) {
     } catch {}
   }
 }
+
+// In-memory stores for hooks (Week 2 stubs)
+const hookCorpusStore = new Map<string, any[]>();
+const hookSynthStore = new Map<string, any[]>();
 
 app.get("/jobs/stream", (req: Request, res: Response) => {
   res.setHeader("Content-Type", "text/event-stream");

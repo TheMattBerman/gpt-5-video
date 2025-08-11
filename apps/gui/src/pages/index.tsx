@@ -166,6 +166,9 @@ export default function Home() {
               <Link href="/renders" className="text-blue-600 underline">
                 Renders
               </Link>
+              <Link href="/settings" className="text-blue-600 underline">
+                Settings
+              </Link>
             </nav>
             <div className="text-gray-600">SSE status: {ping}</div>
           </div>

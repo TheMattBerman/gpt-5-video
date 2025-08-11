@@ -19,6 +19,8 @@ export default function HooksPage() {
   >([]);
   const [corpus, setCorpus] = useState<any[]>([]);
   const [synth, setSynth] = useState<any[]>([]);
+  const [lastMineId, setLastMineId] = useState<string>("");
+  const [lastSynthId, setLastSynthId] = useState<string>("");
   const [sources, setSources] = useState<
     Array<{
       platform: "tiktok" | "instagram" | "youtube";
@@ -241,6 +243,8 @@ export default function HooksPage() {
                   });
                   const data = await res.json();
                   if (res.ok) {
+                    setLastMineId(String(data?.id || ""));
+                    setCorpus(Array.isArray(data?.items) ? data.items : []);
                     updateJob(provisionalId, {
                       status: "succeeded",
                       completedAt: Date.now(),
@@ -323,13 +327,31 @@ export default function HooksPage() {
               </tbody>
             </table>
           </div>
+          <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
+            <span>Last mine id:</span>
+            <span className="font-mono">{lastMineId || "--"}</span>
+            <button
+              className="rounded border px-2 py-0.5"
+              disabled={!lastMineId}
+              onClick={async () => {
+                if (!lastMineId) return;
+                const res = await fetch(
+                  `${apiBase}/hooks/corpus/${lastMineId}`,
+                );
+                const data = await res.json();
+                setCorpus(Array.isArray(data.items) ? data.items : []);
+              }}
+            >
+              Refresh corpus
+            </button>
+          </div>
           {!!corpus.length && (
             <div className="mt-3">
               <div className="text-sm font-medium mb-1">Corpus (sample)</div>
               <ul className="list-disc pl-4 text-xs">
                 {corpus.slice(0, 5).map((c, i) => (
                   <li key={i} className="truncate">
-                    {c.url || c.caption || JSON.stringify(c)}
+                    {c.url || c.caption_or_transcript || JSON.stringify(c)}
                   </li>
                 ))}
               </ul>
@@ -459,6 +481,10 @@ export default function HooksPage() {
                   });
                   const data = await res.json();
                   setSynthResp({ ok: res.ok, data });
+                  if (res.ok) {
+                    setLastSynthId(String(data?.id || ""));
+                    setSynth(Array.isArray(data?.items) ? data.items : []);
+                  }
                   if (res.ok)
                     updateJob(provisionalId, {
                       status: "succeeded",
@@ -479,6 +505,38 @@ export default function HooksPage() {
               <pre className="mt-2 max-h-48 overflow-auto rounded border bg-gray-50 p-2 text-xs">
                 {JSON.stringify(synthResp, null, 2)}
               </pre>
+            )}
+            <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+              <span>Last synth id:</span>
+              <span className="font-mono">{lastSynthId || "--"}</span>
+              <button
+                className="rounded border px-2 py-0.5"
+                disabled={!lastSynthId}
+                onClick={async () => {
+                  if (!lastSynthId) return;
+                  const res = await fetch(
+                    `${apiBase}/hooks/synth/${lastSynthId}`,
+                  );
+                  const data = await res.json();
+                  setSynth(Array.isArray(data.items) ? data.items : []);
+                }}
+              >
+                Refresh synth
+              </button>
+            </div>
+            {!!synth.length && (
+              <div className="mt-2">
+                <div className="text-sm font-medium mb-1">
+                  Synthesized hooks (sample)
+                </div>
+                <ul className="list-disc pl-4 text-xs">
+                  {synth.slice(0, 5).map((h, i) => (
+                    <li key={i} className="truncate">
+                      {h.hook_text || JSON.stringify(h)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         </section>
