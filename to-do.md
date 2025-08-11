@@ -120,6 +120,14 @@ Acceptance (Week 2)
     - [x] Minimal Playwright smoke test: dashboard tiles render and SSE ping updates; added retry loop and KPI tile visibility assertion
     - [x] Playwright config and install script added in `apps/gui`
 
+### Stretch/Backlog — GUI polish and UX improvements
+
+- [ ] Apply `design.md` plan: tokens, `Layout`, `PageHeader`, UI primitives, onboarding, page upgrades
+  - [ ] Milestone 1: tokens + Layout + primitives; Dashboard + Renders upgrades; helper text; Playwright updates
+  - [ ] Milestone 2: Scenes Plan/Render upgrades; validation UX
+  - [ ] Milestone 3: Hooks approval/filters UX
+  - [ ] Milestone 4: Video Assemble tabs; Review & Export polish; Quick tour
+
 Acceptance (Week 3)
 
 - [ ] 5 video drafts created with audio in both voiceover and dialogue modes when enabled; export flows work; GUI reflects job state changes within 3s.
