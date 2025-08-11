@@ -2,22 +2,22 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import sceneSpecsLineSchema from "../../../../packages/schemas/schemas/scene_specs_line.schema.json";
+import videoManifestSchema from "../../../../packages/schemas/schemas/video_manifest.schema.json";
 import { ajv } from "@gpt5video/shared";
 import { addJob, updateJob } from "../lib/jobs";
 import { useToast } from "../components/Toast";
 
-export default function ScenesRenderPage() {
+export default function VideoAssemblePage() {
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
     [],
   );
   const [text, setText] = useState<string>(() =>
-    JSON.stringify(exampleScene, null, 2),
+    JSON.stringify(exampleManifest, null, 2),
   );
   const [errors, setErrors] = useState<string[]>([]);
   const [resp, setResp] = useState<any>(null);
-  const validate = useMemo(() => ajv.compile(sceneSpecsLineSchema as any), []);
+  const validate = useMemo(() => ajv.compile(videoManifestSchema as any), []);
   const { show } = useToast();
 
   function validateText(t: string) {
@@ -39,19 +39,19 @@ export default function ScenesRenderPage() {
   }
 
   async function submit() {
-    const scene = validateText(text);
-    if (!scene) return;
-    const provisionalId = `scene_render_${Date.now()}`;
+    const manifest = validateText(text);
+    if (!manifest) return;
+    const provisionalId = `video_assemble_${Date.now()}`;
     addJob({
       id: provisionalId,
-      type: "scene_render",
+      type: "video_assemble",
       status: "queued",
       createdAt: Date.now(),
     });
-    const res = await fetch(`${apiBase}/scenes/render`, {
+    const res = await fetch(`${apiBase}/videos/assemble`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scene }),
+      body: JSON.stringify({ manifest }),
     });
     const data = await res.json();
     setResp({ ok: res.ok, data });
@@ -63,10 +63,9 @@ export default function ScenesRenderPage() {
           typeof data?.duration_ms === "number" ? data.duration_ms : undefined,
         predictionId: data?.prediction_id,
         modelVersion: data?.model_version,
-        seed: typeof data?.seed === "number" ? data.seed : null,
         runId: data?.run_id,
       });
-      show({ title: "Scene rendered", variant: "success" });
+      show({ title: "Video assembled", variant: "success" });
     } else {
       updateJob(provisionalId, {
         status: "failed",
@@ -74,20 +73,12 @@ export default function ScenesRenderPage() {
         error: String(data?.error || res.statusText),
       });
       show({
-        title: "Render failed",
+        title: "Video assemble failed",
         description: String(data?.error || res.statusText),
         variant: "error",
       });
     }
   }
-
-  const contentType =
-    typeof resp?.data?.output === "string" &&
-    resp?.data?.output?.match(/\.mp4|\.webm|\.gif|\.png|\.jpg/i)
-      ? resp.data.output.endsWith(".mp4") || resp.data.output.endsWith(".webm")
-        ? "video"
-        : "image"
-      : undefined;
 
   const outputs: string[] = Array.isArray(resp?.data?.output)
     ? resp.data.output
@@ -99,7 +90,7 @@ export default function ScenesRenderPage() {
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
         <header className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Scenes Render</h1>
+          <h1 className="text-xl font-semibold">Video Assemble</h1>
           <nav className="flex gap-4 text-sm">
             <Link className="text-blue-600 underline" href="/">
               Dashboard
@@ -108,7 +99,8 @@ export default function ScenesRenderPage() {
         </header>
         <section className="rounded border bg-white p-4">
           <div className="mb-3 text-sm text-gray-700">
-            Paste a valid scene spec, submit to render, and preview outputs.
+            Build a minimal manifest, validate, and submit (audio.mode must be
+            "none").
           </div>
           <div className="grid grid-cols-2 gap-4">
             <textarea
@@ -140,13 +132,7 @@ export default function ScenesRenderPage() {
                   disabled={errors.length > 0}
                   className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
                 >
-                  Render
-                </button>
-                <button
-                  onClick={() => setText(JSON.stringify(exampleScene, null, 2))}
-                  className="rounded border px-3 py-1.5 text-sm"
-                >
-                  Insert Ideogram preset
+                  Assemble
                 </button>
               </div>
               {resp && (
@@ -163,16 +149,6 @@ export default function ScenesRenderPage() {
                       {resp.data?.model_version}
                     </span>
                   </div>
-                  {typeof resp.data?.seed === "number" && (
-                    <div className="inline-flex items-center gap-2">
-                      <span className="text-xs rounded bg-gray-100 px-1.5 py-0.5">
-                        seed
-                      </span>
-                      <span className="font-mono text-xs">
-                        {String(resp.data.seed)}
-                      </span>
-                    </div>
-                  )}
                   <div className="text-gray-700">
                     duration_ms:{" "}
                     <span className="font-mono">
@@ -233,17 +209,9 @@ export default function ScenesRenderPage() {
   );
 }
 
-const exampleScene = {
-  scene_id: "hook1_s1",
-  duration_s: 2.0,
-  composition: "tight mid on mascot, text plate right",
-  props: ["phone", "chart"],
-  overlays: [{ type: "lower_third", text: "Fix your loop" }],
-  model: "ideogram-character",
-  model_inputs: {
-    prompt: "mascot in startup office, confident expression",
-    character_reference_image: "https://example.com/mascot-headshot.png",
-    aspect_ratio: "9:16",
-    rendering_speed: "Default",
-  },
+const exampleManifest = {
+  order: ["hook1_s1", "hook1_s2"],
+  transitions: "hard_cuts",
+  motion: "subtle parallax",
+  audio: { mode: "none" },
 };

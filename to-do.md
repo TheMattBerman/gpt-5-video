@@ -11,9 +11,10 @@ Status legend: [ ] not started, [~] in progress, [x] done, [!] blocked
 - [~] Repo and project scaffolding (monorepo ready)
   - [x] Structure: `apps/api`, `apps/gui`, `packages/schemas`, `packages/clients`, `packages/shared`, `infra/`
   - [~] Tooling: TypeScript, ESLint/Prettier
-  - [ ] Husky + lint-staged
+  - [x] Husky + lint-staged
+  - [x] Husky pre-commit for typecheck + lint
   - [~] Env: examples added as markdown (`apps/api/ENV_EXAMPLE.md`, `apps/gui/ENV_LOCAL_EXAMPLE.md`)
-  - [ ] CI: PR checks (typecheck, lint, build), trunk-based strategy
+  - [x] CI: PR checks (typecheck, lint, build), trunk-based strategy
 - [~] Data contracts (JSON Schemas)
   - [x] `brand_profile.schema.json`
   - [x] `hook_corpus_line.schema.json`
@@ -23,31 +24,44 @@ Status legend: [ ] not started, [~] in progress, [x] done, [!] blocked
   - [x] `scene_images_line.schema.json`
   - [x] `video_manifest.schema.json` (audio.mode: none|voiceover|dialogue + conditional required fields)
 - [~] Shared Types and Validators
-  - [~] Generate TS types from schemas; package export in `packages/schemas` (temp handwritten types pending generator)
+  - [~] Generate TS types from schemas; package export in `packages/schemas` (generator wired)
   - [x] Runtime validation helpers (ajv) in `packages/shared`
 - [~] Orchestrator API (minimal viable endpoints)
   - [x] POST `/ingest/brand` (schema validated)
-  - [ ] POST `/hooks/mine` (stub returns) and `/hooks/synthesize` (stub)
+  - [x] POST `/hooks/mine` (stub returns) and `/hooks/synthesize` (stub)
   - [x] POST `/scenes/plan` (schema validated for array or single item)
-  - [~] POST `/scenes/render` (Replicate call; response includes prediction_id, model_version, seed, duration)
-  - [~] POST `/videos/assemble` (Replicate call; audio.mode=none enforced; response includes prediction_id, model_version, duration)
+  - [x] POST `/scenes/render` (Replicate call; response includes prediction_id, model_version, seed, duration; persisted)
+  - [x] POST `/videos/assemble` (Replicate call; audio.mode=none enforced; response includes prediction_id, model_version, duration; persisted)
   - [x] SSE `/jobs/stream` (ping event)
   - [~] Request/response validation, correlation IDs, structured logs (pinoHttp with req ids; schemas enforced on key routes; responses include run_id)
+  - [x] GET `/jobs/recent` and GET `/kpis/today` (DB-backed)
+  - [x] Persist artifacts for renders and videos (DB-backed; GUI previews)
+  - [x] Cost ledger writes on render/assemble jobs (placeholder estimates)
+  - [x] SSE `/jobs/stream` emits job updates (not just ping)
 - [ ] Replicate client wrapper in `packages/clients/replicate`
   - [x] Prediction lifecycle, polling, error surface, seeds/model version capture
   - [ ] First model: Ideogram Character image render
   - [ ] Veo 3 video draft from manifest (images only; audio.mode="none")
 - [ ] Minimal storage + object hosting
-  - [ ] Postgres via docker-compose
-  - [ ] S3-compatible dev (MinIO) + signed URL helper
-  - [ ] Asset registry tables (artifacts, costs, seeds, model versions)
+  - [x] Postgres via docker-compose
+  - [x] S3-compatible dev (MinIO) + signed URL helper
+  - [x] Asset registry tables (artifacts, costs, seeds, model versions)
 - [~] Operator GUI — Phase 1
   - [x] Next.js app shell with Tailwind, React Query, SSE client
   - [x] SSE client basic page wiring to `/jobs/stream`
   - [x] Dashboard tiles + recent assets table (session) + nav links to Brand/Hooks
+  - [x] Dashboard KPIs: In-progress, Failures (today), Avg render time (ms), Spend today (placeholder)
+  - [x] Dashboard consumes SSE job events (minimal refresh)
   - [x] Brand Ingest wizard with schema validation
   - [x] Hooks page placeholder
+  - [x] Hooks UI minimal forms with JSON checks; show API stub responses
   - [x] Scenes Plan UI with schema validation (submit to `/scenes/plan`)
+  - [x] Renders page: grid from server `/jobs/recent` with seed/model_version/duration and previews
+  - [x] Dashboard spend tile uses server KPIs only; shows unavailable state when missing
+  - [x] Toast notifications for success and errors in Scenes/Video pages
+  - [x] Preset button to insert Ideogram Character example in Scenes Plan/Render
+
+  Impact: Jobs persisted in Postgres; Dashboard KPIs switch to server source with fallback; Renders page added; Hooks forms validate JSON and call API stubs; builds remain green.
 
 Acceptance (Week 1)
 

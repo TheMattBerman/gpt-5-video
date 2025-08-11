@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { computeKpis } from "../lib/jobs";
+import { useToast } from "../components/Toast";
 
-type RecentAsset = { key: string; contentType: string; uploadedAt: number; previewUrl?: string };
+type RecentAsset = {
+  key: string;
+  contentType: string;
+  uploadedAt: number;
+  previewUrl?: string;
+};
 
 export default function Home() {
   const [ping, setPing] = useState<string>("connecting...");
@@ -11,16 +18,63 @@ export default function Home() {
   const [status, setStatus] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
   const [recent, setRecent] = useState<RecentAsset[]>([]);
+  const [kpis, setKpis] = useState(() => computeKpis());
+  const [serverKpis, setServerKpis] = useState<{
+    in_progress: number;
+    failures: number;
+    avg_render_time_ms: number;
+    spend_today_usd: number;
+  } | null>(null);
+  const { show } = useToast();
 
-  const apiBase = useMemo(() => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000", []);
-  const publicAssetBase = useMemo(() => (process.env.NEXT_PUBLIC_ASSET_BASE || "").replace(/\/$/, ""), []);
+  const apiBase = useMemo(
+    () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
+    [],
+  );
+  const publicAssetBase = useMemo(
+    () => (process.env.NEXT_PUBLIC_ASSET_BASE || "").replace(/\/$/, ""),
+    [],
+  );
+
+  const fetchKpis = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiBase}/kpis/today`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setServerKpis(data);
+    } catch {}
+  }, [apiBase]);
 
   useEffect(() => {
     const es = new EventSource(`${apiBase}/jobs/stream`);
-    es.addEventListener("ping", (ev) => setPing((ev as MessageEvent).data as string));
+    es.addEventListener("ping", (ev) =>
+      setPing((ev as MessageEvent).data as string),
+    );
+    es.addEventListener("job", () => {
+      setKpis((prev) => ({ ...prev, lastUpdated: Date.now() }));
+      void fetchKpis();
+    });
     es.onerror = () => setPing("disconnected");
     return () => es.close();
-  }, [apiBase]);
+  }, [apiBase, fetchKpis]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setKpis(computeKpis()), 1500);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      if (!cancelled) await fetchKpis();
+    };
+    void tick();
+    const timer = setInterval(tick, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [fetchKpis]);
 
   useEffect(() => {
     if (file && file.type && !contentType) setContentType(file.type);
@@ -38,13 +92,17 @@ export default function Home() {
       const signRes = await fetch(`${apiBase}/uploads/sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, content_type: ctype })
+        body: JSON.stringify({ key, content_type: ctype }),
       });
       if (!signRes.ok) throw new Error(`sign failed: ${signRes.status}`);
       const { url } = (await signRes.json()) as { url: string; key: string };
 
       setStatus("Uploading...");
-      const putRes = await fetch(url, { method: "PUT", headers: { "Content-Type": ctype }, body: file });
+      const putRes = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": ctype },
+        body: file,
+      });
       if (!putRes.ok) throw new Error(`put failed: ${putRes.status}`);
 
       // Prefer public asset base for reads in dev (R2 public bucket)
@@ -53,11 +111,24 @@ export default function Home() {
         preview = `${publicAssetBase}/${key}`;
       } else {
         // Fallback to API debug endpoint to compute a public or signed GET URL
-        const dbg = await fetch(`${apiBase}/uploads/debug-get?key=${encodeURIComponent(key)}`).then((r) => r.json());
-        preview = (dbg.public_url as string) || (dbg.url as string) || undefined;
+        const dbg = await fetch(
+          `${apiBase}/uploads/debug-get?key=${encodeURIComponent(key)}`,
+        ).then((r) => r.json());
+        preview =
+          (dbg.public_url as string) || (dbg.url as string) || undefined;
       }
       setPreviewUrl(preview);
-      setRecent((prev) => [{ key, contentType: ctype, uploadedAt: Date.now(), previewUrl: preview }, ...prev].slice(0, 10));
+      setRecent((prev) =>
+        [
+          {
+            key,
+            contentType: ctype,
+            uploadedAt: Date.now(),
+            previewUrl: preview,
+          },
+          ...prev,
+        ].slice(0, 10),
+      );
       setStatus("Uploaded ✅");
     } catch (err: any) {
       setStatus(`Error: ${err?.message || String(err)}`);
@@ -69,12 +140,29 @@ export default function Home() {
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-4xl p-6 space-y-8">
         <header className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">All-Replicate Content Engine</h1>
+          <h1 className="text-2xl font-semibold">
+            All-Replicate Content Engine
+          </h1>
           <div className="flex items-center gap-4 text-sm">
             <nav className="flex items-center gap-3">
-              <Link href="/brand" className="text-blue-600 underline">Brand</Link>
-              <Link href="/hooks" className="text-blue-600 underline">Hooks</Link>
-              <Link href="/scenes-plan" className="text-blue-600 underline">Scenes Plan</Link>
+              <Link href="/brand" className="text-blue-600 underline">
+                Brand
+              </Link>
+              <Link href="/hooks" className="text-blue-600 underline">
+                Hooks
+              </Link>
+              <Link href="/scenes-plan" className="text-blue-600 underline">
+                Scenes Plan
+              </Link>
+              <Link href="/scenes-render" className="text-blue-600 underline">
+                Scenes Render
+              </Link>
+              <Link href="/video-assemble" className="text-blue-600 underline">
+                Video Assemble
+              </Link>
+              <Link href="/renders" className="text-blue-600 underline">
+                Renders
+              </Link>
             </nav>
             <div className="text-gray-600">SSE status: {ping}</div>
           </div>
@@ -82,15 +170,50 @@ export default function Home() {
 
         <section className="grid grid-cols-2 gap-4">
           <div className="rounded-lg border bg-white p-4">
-            <div className="text-xs font-medium text-gray-500 mb-2">Dashboard</div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="text-xs font-medium text-gray-500 mb-2">
+              Dashboard
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               <Tile label="Uploads (session)" value={String(recent.length)} />
-              <Tile label="Last ping (ms ago)" value={String(Math.max(0, Date.now() - Number(ping?.match(/\"ts\":\s*(\d+)/)?.[1] || Date.now())))} />
+              <Tile
+                label="Last ping (ms ago)"
+                value={String(
+                  Math.max(
+                    0,
+                    Date.now() -
+                      Number(ping?.match(/\"ts\":\s*(\d+)/)?.[1] || Date.now()),
+                  ),
+                )}
+              />
               <ApiHealthTile apiBase={apiBase} />
+              <Tile
+                label="In-progress jobs"
+                value={String(serverKpis?.in_progress ?? "--")}
+                warn={!serverKpis}
+              />
+              <Tile
+                label="Failures (today)"
+                value={String(serverKpis?.failures ?? "--")}
+                warn={!serverKpis}
+              />
+              <Tile
+                label="Avg render time (ms)"
+                value={String(serverKpis?.avg_render_time_ms ?? "--")}
+                warn={!serverKpis}
+              />
+              <Tile
+                label="Spend today ($)"
+                value={
+                  serverKpis ? serverKpis.spend_today_usd.toFixed(2) : "--"
+                }
+                warn={!serverKpis}
+              />
             </div>
           </div>
           <div className="rounded-lg border bg-white p-4">
-            <div className="text-xs font-medium text-gray-500 mb-2">Upload to R2 (dev)</div>
+            <div className="text-xs font-medium text-gray-500 mb-2">
+              Upload to R2 (dev)
+            </div>
             <div className="space-y-3">
               <div>
                 <input
@@ -100,7 +223,8 @@ export default function Home() {
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm">Prefix
+                <label className="text-sm">
+                  Prefix
                   <input
                     value={keyPrefix}
                     onChange={(e) => setKeyPrefix(e.target.value)}
@@ -108,7 +232,8 @@ export default function Home() {
                     placeholder="dev/"
                   />
                 </label>
-                <label className="text-sm">Content-Type
+                <label className="text-sm">
+                  Content-Type
                   <input
                     value={contentType}
                     onChange={(e) => setContentType(e.target.value)}
@@ -132,11 +257,24 @@ export default function Home() {
                   <div className="text-xs text-gray-500">Preview</div>
                   {contentType.startsWith("image/") ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={previewUrl} alt="preview" className="max-h-60 rounded border" />
+                    <img
+                      src={previewUrl}
+                      alt="preview"
+                      className="max-h-60 rounded border"
+                    />
                   ) : contentType.startsWith("video/") ? (
-                    <video src={previewUrl} controls className="max-h-60 rounded border" />
+                    <video
+                      src={previewUrl}
+                      controls
+                      className="max-h-60 rounded border"
+                    />
                   ) : (
-                    <a href={previewUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm">
+                    <a
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 underline text-sm"
+                    >
                       {previewUrl}
                     </a>
                   )}
@@ -147,7 +285,9 @@ export default function Home() {
         </section>
 
         <section className="rounded-lg border bg-white p-4">
-          <div className="text-xs font-medium text-gray-500 mb-2">Recent assets (session)</div>
+          <div className="text-xs font-medium text-gray-500 mb-2">
+            Recent assets (session)
+          </div>
           <div className="overflow-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -163,10 +303,17 @@ export default function Home() {
                   <tr key={`${a.key}-${a.uploadedAt}`} className="border-t">
                     <td className="px-2 py-1 font-mono">{a.key}</td>
                     <td className="px-2 py-1">{a.contentType}</td>
-                    <td className="px-2 py-1 text-gray-600">{new Date(a.uploadedAt).toLocaleTimeString()}</td>
+                    <td className="px-2 py-1 text-gray-600">
+                      {new Date(a.uploadedAt).toLocaleTimeString()}
+                    </td>
                     <td className="px-2 py-1">
                       {a.previewUrl ? (
-                        <a href={a.previewUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                        <a
+                          href={a.previewUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 underline"
+                        >
                           open
                         </a>
                       ) : (
@@ -191,9 +338,19 @@ export default function Home() {
   );
 }
 
-function Tile({ label, value }: { label: string; value: string }) {
+function Tile({
+  label,
+  value,
+  warn,
+}: {
+  label: string;
+  value: string;
+  warn?: boolean;
+}) {
   return (
-    <div className="rounded border p-3">
+    <div
+      className={`rounded border p-3 ${warn ? "bg-yellow-50 border-yellow-200" : ""}`}
+    >
       <div className="text-xs text-gray-500">{label}</div>
       <div className="text-xl font-semibold">{value}</div>
     </div>
@@ -219,4 +376,3 @@ function ApiHealthTile({ apiBase }: { apiBase: string }) {
   }, [apiBase]);
   return <Tile label="API" value={status} />;
 }
-

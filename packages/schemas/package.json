@@ -4,15 +4,18 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run gen:types && tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json -w",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
-    "format": "prettier -w ."
+    "format": "prettier -w .",
+    "gen:types": "node scripts/gen-types.mjs"
   },
+  "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.5.4"
+    "json-schema-to-typescript": "^15.0.0",
+    "typescript": "^5.5.4",
+    "eslint": "^8.57.0"
   },
   "type": "module"
 }
-

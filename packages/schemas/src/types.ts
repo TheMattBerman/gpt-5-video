@@ -1,4 +1,4 @@
-// Generated types will live here once schema-to-types is wired.
+// Temporary handwritten types; generated types live in types.gen.ts
 export type BrandProfile = {
   brand_id: string;
   voice: {
@@ -84,5 +84,3 @@ export type VideoManifest = {
     }>;
   };
 };
-
-

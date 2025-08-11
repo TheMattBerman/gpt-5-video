@@ -1,3 +1,29 @@
+# All-Replicate Content Engine (MVP)
+
+Local dev quickstart
+
+1. Start infra (Postgres + MinIO):
+   - `docker compose -f infra/docker-compose.yml up -d`
+   - Create bucket `gpt5video` in MinIO console (http://localhost:9001)
+2. API
+   - Copy `apps/api/ENV_EXAMPLE.md` to `.env` and set `REPLICATE_API_TOKEN`
+   - `npm run -w apps/api dev`
+3. GUI
+   - Copy `apps/gui/ENV_LOCAL_EXAMPLE.md` to `.env.local`
+   - `npm run -w apps/gui dev`
+
+Week 1 demo
+
+- Brand: paste JSON and submit
+- Scenes Plan: author one spec or an array; validate and submit
+- Scenes Render: submit a valid spec; see prediction id, model version, seed, duration; artifacts will appear on Renders
+- Video Assemble: submit a manifest with `audio.mode: none`
+
+Notes on models
+
+- ideogram-character inputs must include `prompt`, `character_reference_image`, with optional `aspect_ratio` and `rendering_speed`
+- imagen-4 inputs must include `prompt` with optional `aspect_ratio` and `negative_prompt`
+
 ## GPT-5 Video — Monorepo
 
 Operator-driven pipeline to go from Hooks → Scenes → Video using Replicate models, with strict JSON schemas, signed uploads, and an SSE-powered GUI.

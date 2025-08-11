@@ -10,11 +10,9 @@
     "lint": "eslint .",
     "format": "prettier -w ."
   },
-  "dependencies": {
-    
-  },
+  "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "eslint": "^8.57.0"
   }
 }
-

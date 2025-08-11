@@ -1,0 +1,8 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "Running staged format/lint and typecheck..."
+npx --no-install lint-staged || exit 1
+npm run -ws typecheck || exit 1
+echo "Pre-commit checks passed."
+

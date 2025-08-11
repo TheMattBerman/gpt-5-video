@@ -13,15 +13,27 @@
     "dev": "npm run -ws dev",
     "lint": "npm run -ws lint",
     "typecheck": "npm run -ws typecheck",
-    "format": "npm run -ws format"
+    "format": "npm run -ws format",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
-    "eslint": "^9.9.0",
+    "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",
+    "husky": "^9.1.7",
+    "@typescript-eslint/eslint-plugin": "^7.16.1",
+    "@typescript-eslint/parser": "^7.16.1",
     "prettier": "^3.3.3",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "lint-staged": "^15.2.10"
+  },
+  "lint-staged": {
+    "**/*.{ts,tsx,js,jsx}": [
+      "prettier -w"
+    ],
+    "**/*.{json,md,css}": [
+      "prettier -w"
+    ]
   }
 }
-
