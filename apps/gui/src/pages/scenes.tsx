@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
+import { fetchWithAuth } from "../lib/http";
 import { ajv } from "@gpt5video/shared";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -70,7 +71,7 @@ export default function ScenesEditorPage() {
       show({ title: "Invalid scene spec", variant: "error" });
       return;
     }
-    const res = await fetch(`${apiBase}/scenes/plan`, {
+    const res = await fetchWithAuth(`${apiBase}/scenes/plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(parsed),

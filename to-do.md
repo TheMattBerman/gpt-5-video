@@ -102,19 +102,23 @@ Acceptance (Week 2)
 - [x] Status and cost badges on Video Assemble via job detail polling (estimate + actual)
 - [~] 720p/1080p preview with transport controls and thumbnails
   - [x] Add richer player + client-side filmstrip in `video-assemble.tsx` and `renders.tsx`
+  - [x] Debounce and cancel in-flight thumbnail capture; cleanup hidden elements; constrain to ~5 frames; responsive aspect-aware sizing
 - [x] SSE UI: Scenes Render/Video Assemble show step feed + attempt_count; Renders shows latest step
 - [~] Review & Export
 - [~] Checklist: tone/claims/assets (stub page added)
-- [x] Export presets: 9:16, 1:1, 16:9; compute S3 keys; Copy key and Open (signed) in `review-export.tsx`
+  - [x] Export presets: 9:16, 1:1, 16:9; compute S3 keys; Copy key and Open (signed) in `review-export.tsx`
+  - [x] Toast on copy and preset aspect label shown next to S3 key
 - [x] CSV report (costs + basic performance placeholders)
 - [~] Security & access
   - [ ] JWT auth with roles; signed URLs for uploads/downloads
   - [x] Minimal JWT middleware scaffold in API (non-dev, protects mutating routes); token field in GUI settings; attach Authorization header in protected fetches
+  - [x] Verified protected GUI fetches use Authorization header for `/jobs/:id/decision`, `/jobs/:id/rerun`, `/jobs/:id/cancel`, `/scenes/*`, `/videos/*`
   - [x] Guardrails: max cost per batch, concurrency caps (numeric range validation; optimistic UI updates; dashboard reflects changes without reload)
 - [~] Observability and QA
   - [ ] Logs/metrics/traces; alerting on error spikes
   - [~] E2E happy-path test; seed-lock rerun test; failure recovery test
-    - [x] Minimal Playwright smoke test: dashboard tiles render and SSE ping updates
+    - [x] Minimal Playwright smoke test: dashboard tiles render and SSE ping updates; added retry loop and KPI tile visibility assertion
+    - [x] Playwright config and install script added in `apps/gui`
 
 Acceptance (Week 3)
 

@@ -41,6 +41,10 @@ import {
   listObjects,
 } from "@gpt5video/storage";
 import { ScrapeCreatorsClient } from "@gpt5video/scrapecreators";
+import {
+  ReplicateClient,
+  extractSeedFromOutput,
+} from "@gpt5video/replicate-client";
 // For Week 1, import schemas directly
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -597,10 +601,6 @@ const MODEL_VERSIONS: Record<string, string> = {
     process.env.REPLICATE_VEO3_VERSION || ReplicateClient.defaultVersions.veo3,
 };
 
-import {
-  ReplicateClient,
-  extractSeedFromOutput,
-} from "@gpt5video/replicate-client";
 import { buildModelInputs } from "./models";
 
 async function createPrediction(

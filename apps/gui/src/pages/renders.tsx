@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
 import { fetchWithAuth } from "../lib/http";
 
@@ -31,6 +31,10 @@ export default function RendersPage() {
   const [compareBUrl, setCompareBUrl] = useState<string | null>(null);
   const [compareAThumbs, setCompareAThumbs] = useState<string[]>([]);
   const [compareBThumbs, setCompareBThumbs] = useState<string[]>([]);
+  const thumbsTaskA = useRef<number>(0);
+  const thumbsTaskB = useRef<number>(0);
+  const thumbsTimerA = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thumbsTimerB = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [drawerJobId, setDrawerJobId] = useState<string | null>(null);
   const [drawerJob, setDrawerJob] = useState<any | null>(null);
   const [lastEventByJob, setLastEventByJob] = useState<
@@ -54,6 +58,28 @@ export default function RendersPage() {
       setLoading(false);
     }
   };
+
+  function scheduleThumbs(which: "A" | "B", url: string) {
+    if (which === "A") {
+      if (thumbsTimerA.current) clearTimeout(thumbsTimerA.current);
+      thumbsTimerA.current = setTimeout(() => {
+        thumbsTaskA.current++;
+        const thisId = thumbsTaskA.current;
+        void generateThumbs(url).then((arr) => {
+          if (thisId === thumbsTaskA.current) setCompareAThumbs(arr);
+        });
+      }, 200);
+    } else {
+      if (thumbsTimerB.current) clearTimeout(thumbsTimerB.current);
+      thumbsTimerB.current = setTimeout(() => {
+        thumbsTaskB.current++;
+        const thisId = thumbsTaskB.current;
+        void generateThumbs(url).then((arr) => {
+          if (thisId === thumbsTaskB.current) setCompareBThumbs(arr);
+        });
+      }, 200);
+    }
+  }
 
   useEffect(() => {
     fetchData();
@@ -157,9 +183,7 @@ export default function RendersPage() {
                         src={compareAUrl}
                         controls
                         className="w-full max-h-80 object-contain"
-                        onLoadedData={() =>
-                          generateThumbs(compareAUrl, setCompareAThumbs)
-                        }
+                        onLoadedData={() => scheduleThumbs("A", compareAUrl)}
                       />
                       {compareAThumbs.length > 0 && (
                         <div className="mt-1 flex items-center gap-2 overflow-x-auto">
@@ -188,9 +212,7 @@ export default function RendersPage() {
                         src={compareBUrl}
                         controls
                         className="w-full max-h-80 object-contain"
-                        onLoadedData={() =>
-                          generateThumbs(compareBUrl, setCompareBThumbs)
-                        }
+                        onLoadedData={() => scheduleThumbs("B", compareBUrl)}
                       />
                       {compareBThumbs.length > 0 && (
                         <div className="mt-1 flex items-center gap-2 overflow-x-auto">
@@ -695,11 +717,7 @@ function promptRerunPayload(job: Job): Promise<any | null> {
   });
 }
 
-async function generateThumbs(
-  url: string,
-  set: (arr: string[]) => void,
-  count = 5,
-) {
+async function generateThumbs(url: string, count = 5): Promise<string[]> {
   try {
     const video = document.createElement("video");
     video.src = url;
@@ -710,12 +728,14 @@ async function generateThumbs(
       video.onerror = reject as any;
     });
     const duration = isFinite(video.duration) ? video.duration : 0;
-    if (!duration) return set([]);
+    if (!duration) return [];
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    if (!ctx) return set([]);
+    if (!ctx) return [];
+    const vw = video.videoWidth || 1920;
+    const vh = video.videoHeight || 1080;
     const width = 200;
-    const height = Math.round(width * (9 / 16));
+    const height = Math.round(width * (vh / vw));
     canvas.width = width;
     canvas.height = height;
     const captures: string[] = [];
@@ -724,15 +744,25 @@ async function generateThumbs(
       await new Promise<void>((resolve) => {
         const onSeeked = () => {
           ctx.drawImage(video, 0, 0, width, height);
-          captures.push(canvas.toDataURL("image/jpeg", 0.7));
+          try {
+            captures.push(canvas.toDataURL("image/jpeg", 0.7));
+          } catch {}
           resolve();
         };
         video.currentTime = t;
         video.onseeked = onSeeked;
       });
     }
-    set(captures);
+    const result = captures.slice(0);
+    try {
+      video.src = "";
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      video.load?.();
+    } catch {}
+    return result;
   } catch {
-    set([]);
+    return [];
   }
 }
+
+// scheduleThumbs is defined inside the component to access state/refs

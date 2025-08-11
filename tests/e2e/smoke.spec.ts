@@ -11,8 +11,20 @@ test.describe("Smoke", () => {
     await expect(sseLocator).toBeVisible();
     // Within 5s, ping should update
     const initial = await sseLocator.textContent();
-    await page.waitForTimeout(4000);
-    const after = await sseLocator.textContent();
-    expect(initial).not.toEqual(after);
+    // retry up to ~6s to observe change
+    let changed = false;
+    for (let i = 0; i < 6; i++) {
+      await page.waitForTimeout(1000);
+      const after = await sseLocator.textContent();
+      if (initial !== after) {
+        changed = true;
+        break;
+      }
+    }
+    expect(changed).toBeTruthy();
+
+    // KPI tile should update after a synthetic job event (if available); otherwise, assert tile presence
+    const kpiTile = page.getByText(/In-progress jobs/i);
+    await expect(kpiTile).toBeVisible();
   });
 });

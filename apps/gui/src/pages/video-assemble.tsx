@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import videoManifestSchema from "../../../../packages/schemas/schemas/video_manifest.schema.json";
@@ -36,6 +36,8 @@ export default function VideoAssemblePage() {
   const [filmstripUrls, setFilmstripUrls] = useState<string[]>([]);
   const [transitions, setTransitions] = useState<string>("hard_cuts");
   const [motion, setMotion] = useState<string>("subtle parallax");
+  const validateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const parsingRef = useRef<number>(0);
   // Audio tab fields
   const [audioMode, setAudioMode] = useState<"none" | "voiceover" | "dialogue">(
     "none",
@@ -48,23 +50,57 @@ export default function VideoAssemblePage() {
   const [dialogueTiming, setDialogueTiming] = useState<
     Array<{ scene_id: string; t: number; character: string; line: string }>
   >([]);
+  // filmstrip capture control
+  const filmstripTaskIdRef = useRef<number>(0);
+  const filmstripTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function validateText(t: string) {
+  function syncFormFromManifest(parsed: any) {
     try {
-      const parsed = JSON.parse(t);
-      const ok = validate(parsed);
-      if (!ok)
-        setErrors(
-          (validate.errors || []).map(
-            (e) => `${e.instancePath || "/"} ${e.message || "invalid"}`,
-          ),
-        );
-      else setErrors([]);
-      return ok ? parsed : null;
-    } catch (err: any) {
-      setErrors([`JSON parse error: ${err?.message || String(err)}`]);
-      return null;
-    }
+      if (!parsed || typeof parsed !== "object") return;
+      const ord: string[] = Array.isArray(parsed.order) ? parsed.order : [];
+      if (ord.length) setOrder(ord.join(", "));
+      if (typeof parsed.transitions === "string")
+        setTransitions(parsed.transitions);
+      if (typeof parsed.motion === "string") setMotion(parsed.motion);
+      const a = parsed.audio || {};
+      const mode = a?.mode as "none" | "voiceover" | "dialogue" | undefined;
+      if (mode === "none" || mode === "voiceover" || mode === "dialogue")
+        setAudioMode(mode);
+      if (typeof a?.voice_style === "string") setVoiceStyle(a.voice_style);
+      if (typeof a?.language === "string") setLanguage(a.language);
+      if (typeof a?.pace === "string") setPace(a.pace);
+      if (typeof a?.volume === "string") setVolume(a.volume);
+      if (typeof a?.vo_prompt === "string") setVoPrompt(a.vo_prompt);
+      if (Array.isArray(a?.dialogue_timing))
+        setDialogueTiming(a.dialogue_timing);
+    } catch {}
+  }
+
+  function debouncedValidateAndMaybeSync(t: string) {
+    if (validateTimerRef.current) clearTimeout(validateTimerRef.current);
+    const runId = ++parsingRef.current;
+    validateTimerRef.current = setTimeout(() => {
+      try {
+        const parsed = JSON.parse(t);
+        const ok = validate(parsed);
+        if (runId !== parsingRef.current) return; // stale
+        if (!ok) {
+          setErrors(
+            (validate.errors || []).map(
+              (e) => `${e.instancePath || "/"} ${e.message || "invalid"}`,
+            ),
+          );
+        } else {
+          setErrors([]);
+          // two-way sync: update form fields from valid JSON
+          syncFormFromManifest(parsed);
+        }
+      } catch (err: any) {
+        if (runId !== parsingRef.current) return; // stale
+        // hold errors until debounce; show a single parse line
+        setErrors([`JSON parse error: ${err?.message || String(err)}`]);
+      }
+    }, 300);
   }
 
   function buildManifestFromForm() {
@@ -106,6 +142,8 @@ export default function VideoAssemblePage() {
     }
     const pretty = JSON.stringify(candidate, null, 2);
     setText(pretty);
+    // clear errors and keep form → JSON as source of truth
+    setErrors([]);
   }
 
   const orderArray = order
@@ -123,7 +161,24 @@ export default function VideoAssemblePage() {
   }
 
   async function submit() {
-    const manifest = validateText(text);
+    let manifest: any = null;
+    try {
+      manifest = JSON.parse(text);
+    } catch {}
+    if (!manifest) {
+      show({ title: "Invalid manifest", variant: "error" });
+      return;
+    }
+    const ok = validate(manifest);
+    if (!ok) {
+      setErrors(
+        (validate.errors || []).map(
+          (e) => `${e.instancePath || "/"} ${e.message || "invalid"}`,
+        ),
+      );
+      show({ title: "Invalid manifest", variant: "error" });
+      return;
+    }
     if (!manifest) return;
     const provisionalId = `video_assemble_${Date.now()}`;
     addJob({
@@ -215,7 +270,13 @@ export default function VideoAssemblePage() {
       : [];
 
   // Filmstrip generation for first video output
+  function scheduleFilmstrip(url: string) {
+    if (filmstripTimerRef.current) clearTimeout(filmstripTimerRef.current);
+    filmstripTimerRef.current = setTimeout(() => generateFilmstrip(url), 250);
+  }
+
   async function generateFilmstrip(url: string) {
+    const taskId = ++filmstripTaskIdRef.current;
     try {
       const video = document.createElement("video");
       video.src = url;
@@ -225,31 +286,52 @@ export default function VideoAssemblePage() {
         video.onloadedmetadata = resolve;
         video.onerror = reject as any;
       });
+      if (taskId !== filmstripTaskIdRef.current) return; // cancelled
       const duration = isFinite(video.duration) ? video.duration : 0;
-      if (!duration) return setFilmstripUrls([]);
+      if (!duration) {
+        setFilmstripUrls([]);
+        return;
+      }
       const thumbs = 5;
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
-      if (!ctx) return setFilmstripUrls([]);
-      const width = 240;
-      const height = Math.round(width * (9 / 16));
-      canvas.width = width;
-      canvas.height = height;
+      if (!ctx) {
+        setFilmstripUrls([]);
+        return;
+      }
+      const vw = video.videoWidth || 1920;
+      const vh = video.videoHeight || 1080;
+      const targetWidth = 240;
+      const aspect = vw > 0 && vh > 0 ? vh / vw : 9 / 16;
+      const targetHeight = Math.round(targetWidth * aspect);
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       const captures: string[] = [];
       for (let i = 1; i <= thumbs; i++) {
+        if (taskId !== filmstripTaskIdRef.current) return; // cancelled
         const t = (duration * i) / (thumbs + 1);
         await new Promise<void>((resolve) => {
           const onSeeked = () => {
-            ctx.drawImage(video, 0, 0, width, height);
-            captures.push(canvas.toDataURL("image/jpeg", 0.7));
+            ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+            try {
+              captures.push(canvas.toDataURL("image/jpeg", 0.7));
+            } catch {}
             resolve();
           };
           video.currentTime = t;
           video.onseeked = onSeeked;
         });
       }
+      if (taskId !== filmstripTaskIdRef.current) return; // cancelled
       setFilmstripUrls(captures);
+      // cleanup
+      try {
+        video.src = "";
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        video.load?.();
+      } catch {}
     } catch {
+      if (taskId !== filmstripTaskIdRef.current) return;
       setFilmstripUrls([]);
     }
   }
@@ -475,7 +557,7 @@ export default function VideoAssemblePage() {
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
-                validateText(e.target.value);
+                debouncedValidateAndMaybeSync(e.target.value);
               }}
             />
             <div className="flex flex-col">
@@ -600,7 +682,7 @@ export default function VideoAssemblePage() {
                         src={u}
                         controls
                         className="w-full max-h-[480px] object-contain"
-                        onLoadedData={() => generateFilmstrip(u)}
+                        onLoadedData={() => scheduleFilmstrip(u)}
                       />
                       {filmstripUrls.length > 0 && (
                         <div className="mt-2 flex items-center gap-2 overflow-x-auto">

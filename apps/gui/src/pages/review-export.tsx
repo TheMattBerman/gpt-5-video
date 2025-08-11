@@ -119,6 +119,16 @@ export default function ReviewExportPage() {
                 onChange={(e) => setS3Key(e.target.value)}
                 placeholder="dev/exports/draft.mp4"
               />
+              <div className="mt-1 text-xs text-gray-600">
+                Preset note:{" "}
+                {preset === "1:1"
+                  ? "1x1"
+                  : preset === "16:9"
+                    ? "16x9"
+                    : preset === "9:16"
+                      ? "9x16"
+                      : "n/a"}
+              </div>
             </label>
             <div className="flex items-end">
               <button
@@ -135,7 +145,11 @@ export default function ReviewExportPage() {
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(s3Key);
-                  show({ title: "S3 key copied", variant: "success" });
+                  show({
+                    title: "Copied!",
+                    description: "S3 key copied",
+                    variant: "success",
+                  });
                 } catch {
                   show({ title: "Copy failed", variant: "error" });
                 }

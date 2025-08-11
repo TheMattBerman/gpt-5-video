@@ -8,7 +8,8 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.json",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:install": "npx --yes playwright install --with-deps"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.51.1",

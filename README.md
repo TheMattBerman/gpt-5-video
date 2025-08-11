@@ -174,6 +174,28 @@ Use the returned URL to fetch the object:
 curl -i "<paste presigned get url>"
 ```
 
+### E2E tests (Playwright)
+
+- Install browsers once on your machine:
+
+```bash
+npm run -w @gpt5video/gui test:install
+```
+
+- With GUI running at `http://localhost:3000`, run the smoke test:
+
+```bash
+npm run -w @gpt5video/gui test:e2e
+```
+
+### Build health
+
+To ensure builds stay green before committing:
+
+```bash
+npm run -ws typecheck && npm run -ws build
+```
+
 ### Storage notes (Cloudflare R2)
 
 - Use the account-level endpoint (no bucket in the endpoint URL): `https://<account_id>.r2.cloudflarestorage.com`
