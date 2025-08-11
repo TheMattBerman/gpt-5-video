@@ -53,12 +53,63 @@
   "required": ["order", "transitions", "motion"],
   "allOf": [
     {
-      "if": { "properties": { "audio": { "properties": { "mode": { "const": "voiceover" } } } } },
-      "then": { "properties": { "audio": { "required": ["vo_prompt"] } } }
+      "if": {
+        "type": "object",
+        "properties": {
+          "audio": {
+            "type": "object",
+            "properties": { "mode": { "const": "voiceover" } }
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "audio": {
+            "type": "object",
+            "properties": {
+              "vo_prompt": { "type": "string" }
+            },
+            "required": ["vo_prompt"]
+          }
+        }
+      }
     },
     {
-      "if": { "properties": { "audio": { "properties": { "mode": { "const": "dialogue" } } } } },
-      "then": { "properties": { "audio": { "required": ["dialogue_timing"] } } }
+      "if": {
+        "type": "object",
+        "properties": {
+          "audio": {
+            "type": "object",
+            "properties": { "mode": { "const": "dialogue" } }
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "audio": {
+            "type": "object",
+            "properties": {
+              "dialogue_timing": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "scene_id": { "type": "string" },
+                    "t": { "type": "number", "minimum": 0 },
+                    "character": { "type": "string" },
+                    "line": { "type": "string" }
+                  },
+                  "required": ["scene_id", "t", "character", "line"]
+                }
+              }
+            },
+            "required": ["dialogue_timing"]
+          }
+        }
+      }
     }
   ]
 }

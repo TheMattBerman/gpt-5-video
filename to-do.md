@@ -12,7 +12,7 @@ Status legend: [ ] not started, [~] in progress, [x] done, [!] blocked
   - [x] Structure: `apps/api`, `apps/gui`, `packages/schemas`, `packages/clients`, `packages/shared`, `infra/`
   - [~] Tooling: TypeScript, ESLint/Prettier
   - [ ] Husky + lint-staged
-  - [ ] Env: `.env.example` with `REPLICATE_API_TOKEN`, `SCRAPECREATORS_KEY`, S3 creds
+  - [~] Env: examples added as markdown (`apps/api/ENV_EXAMPLE.md`, `apps/gui/ENV_LOCAL_EXAMPLE.md`)
   - [ ] CI: PR checks (typecheck, lint, build), trunk-based strategy
 - [~] Data contracts (JSON Schemas)
   - [x] `brand_profile.schema.json`

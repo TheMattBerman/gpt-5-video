@@ -13,6 +13,7 @@
     "format": "prettier -w ."
   },
   "dependencies": {
+    "@gpt5video/storage": "file:../../packages/clients/storage",
     "@gpt5video/replicate-client": "file:../../packages/clients/replicate",
     "@gpt5video/shared": "file:../../packages/shared",
     "@gpt5video/schemas": "file:../../packages/schemas",

@@ -5,6 +5,7 @@ import pino from "pino";
 import pinoHttp from "pino-http";
 import { randomUUID } from "crypto";
 import { ajv } from "@gpt5video/shared";
+import { createS3Client, createPresignedPutUrl, createPresignedGetUrl, putObjectDirect, headObject } from "@gpt5video/storage";
 // For Week 1, import schemas directly
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -154,6 +155,76 @@ app.get("/jobs/stream", (req: Request, res: Response) => {
     res.write(`data: {"ts": ${Date.now()}}\n\n`);
   }, 3000);
   req.on("close", () => clearInterval(interval));
+});
+
+// Presigned upload URL for assets (R2/MinIO compatible)
+app.post("/uploads/sign", async (req: Request, res: Response) => {
+  try {
+    const { key, content_type } = req.body || {};
+    if (!key || !content_type) return res.status(400).json({ error: "key_and_content_type_required" });
+    const s3 = createS3Client({
+      endpoint: process.env.S3_ENDPOINT || "http://localhost:9000",
+      region: process.env.S3_REGION || "auto",
+      accessKeyId: process.env.S3_ACCESS_KEY || "",
+      secretAccessKey: process.env.S3_SECRET_KEY || "",
+      bucket: process.env.S3_BUCKET || "gpt5video",
+      forcePathStyle: true
+    });
+    const url = await createPresignedPutUrl(s3 as any, process.env.S3_BUCKET || "gpt5video", key, content_type, 900);
+    res.json({ url, key });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "sign_failed" });
+  }
+});
+
+// Presigned GET for debugging object availability
+app.get("/uploads/debug-get", async (req: Request, res: Response) => {
+  try {
+    const key = String(req.query.key || "");
+    if (!key) return res.status(400).json({ error: "key_required" });
+    const s3 = createS3Client({
+      endpoint: process.env.S3_ENDPOINT || "http://localhost:9000",
+      region: process.env.S3_REGION || "auto",
+      accessKeyId: process.env.S3_ACCESS_KEY || "",
+      secretAccessKey: process.env.S3_SECRET_KEY || "",
+      bucket: process.env.S3_BUCKET || "gpt5video",
+      forcePathStyle: true
+    });
+    const url = await createPresignedGetUrl(s3 as any, process.env.S3_BUCKET || "gpt5video", key, 300);
+    const base = process.env.PUBLIC_ASSET_BASE;
+    const public_url = base ? `${base.replace(/\/$/, "")}/${key}` : undefined;
+    res.json({ url, public_url });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "debug_get_failed" });
+  }
+});
+
+// Direct upload for debugging write path without presign
+app.post("/uploads/debug-put", async (req: Request, res: Response) => {
+  try {
+    const { key, content, content_type } = req.body || {};
+    if (!key || content === undefined) return res.status(400).json({ error: "key_and_content_required" });
+    const s3 = createS3Client({
+      endpoint: process.env.S3_ENDPOINT || "http://localhost:9000",
+      region: process.env.S3_REGION || "auto",
+      accessKeyId: process.env.S3_ACCESS_KEY || "",
+      secretAccessKey: process.env.S3_SECRET_KEY || "",
+      bucket: process.env.S3_BUCKET || "gpt5video",
+      forcePathStyle: true
+    });
+    await putObjectDirect(s3 as any, process.env.S3_BUCKET || "gpt5video", key, typeof content === "string" ? content : JSON.stringify(content), content_type || "text/plain");
+    try {
+      const head = await headObject(s3 as any, process.env.S3_BUCKET || "gpt5video", key);
+      return res.json({ ok: true, head });
+    } catch {
+      return res.json({ ok: true, head: null });
+    }
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "debug_put_failed" });
+  }
 });
 
 const port = Number(process.env.PORT || 4000);

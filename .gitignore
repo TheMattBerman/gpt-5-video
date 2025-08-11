@@ -1,0 +1,17 @@
+node_modules
+.env
+.env.local
+dist
+.next
+.turbo
+coverage
+*.log
+.DS_Store
+**/.idea
+**/.vscode
+**/.cache
+apps/gui/.next
+apps/gui/out
+infra/minio/data
+infra/postgres/data
+

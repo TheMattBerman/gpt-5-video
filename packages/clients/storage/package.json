@@ -1,0 +1,23 @@
+{
+  "name": "@gpt5video/storage",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json -w",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "format": "prettier -w ."
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.676.0",
+    "@aws-sdk/s3-request-presigner": "^3.676.0",
+    "@aws-sdk/protocol-http": "^3.676.0",
+    "@aws-sdk/util-format-url": "^3.676.0",
+    "@aws-crypto/sha256-js": "^5.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}
