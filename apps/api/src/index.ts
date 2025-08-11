@@ -14,6 +14,18 @@ import {
   insertArtifact,
   insertCost,
   countQueuedJobs,
+  insertHookCorpusItems,
+  insertHookSynthItems,
+  listHookCorpus,
+  listHookSynth,
+  updateHookSynth,
+  getJobDetail,
+  findJobByIdemKey,
+  enqueueJob,
+  claimNextQueuedJob,
+  getJobPayload,
+  cancelJob,
+  countProcessingJobs,
 } from "./db";
 import {
   createS3Client,
@@ -23,6 +35,7 @@ import {
   headObject,
   listObjects,
 } from "@gpt5video/storage";
+import { ScrapeCreatorsClient } from "@gpt5video/scrapecreators";
 // For Week 1, import schemas directly
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -76,118 +89,229 @@ app.post("/ingest/brand", (req: Request, res: Response) => {
 });
 
 app.post("/hooks/mine", async (req: Request, res: Response) => {
-  const body = req.body || {};
-  const jobId = `hooks_mine_${Date.now()}`;
-  await insertJob({
-    id: jobId,
-    type: "hooks_mine",
-    status: "queued",
-    startedAt: new Date(),
-  });
-  await updateJob({ id: jobId, runId: (req as any).id || null });
-  req.log?.info?.(
-    { run_id: (req as any).id, job_id: jobId },
-    "hooks.mine.queued",
-  );
-  broadcastJobEvent({
-    id: jobId,
-    type: "hooks_mine",
-    status: "queued",
-    runId: (req as any).id || undefined,
-  });
-  // Week 1: stub succeeds immediately
-  await updateJob({ id: jobId, status: "succeeded", completedAt: new Date() });
-  req.log?.info?.(
-    { run_id: (req as any).id, job_id: jobId },
-    "hooks.mine.succeeded",
-  );
-  broadcastJobEvent({
-    id: jobId,
-    type: "hooks_mine",
-    status: "succeeded",
-    runId: (req as any).id || undefined,
-  });
-  res.json({
-    id: jobId,
-    run_id: (req as any).id || undefined,
-    request: body,
-    status: "queued",
-    items: ((): any[] => {
-      const sample = [
-        {
-          platform: "tiktok",
-          author: "@creator",
-          url: "https://example.com/post/1",
-          caption_or_transcript: "Everyone is wrong about CAC...",
-          metrics: { views: 1000 },
-        },
-      ];
-      hookCorpusStore.set(jobId, sample);
-      return sample;
-    })(),
-  });
+  try {
+    const body = (req.body || {}) as any;
+    const jobId = `hooks_mine_${Date.now()}`;
+    await insertJob({
+      id: jobId,
+      type: "hooks_mine",
+      status: "queued",
+      startedAt: new Date(),
+      payload: { request: body },
+    });
+    await updateJob({ id: jobId, runId: (req as any).id || null });
+    req.log?.info?.(
+      { run_id: (req as any).id, job_id: jobId },
+      "hooks.mine.queued",
+    );
+    broadcastJobEvent({
+      id: jobId,
+      type: "hooks_mine",
+      status: "queued",
+      progress: { step: "queued", pct: 0 },
+    });
+
+    setImmediate(async () => {
+      try {
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_mine",
+          status: "processing",
+          progress: { step: "source_fetch", pct: 10 },
+        });
+        const client = new ScrapeCreatorsClient({
+          apiKey: process.env.SCRAPECREATORS_API_KEY || "dev",
+        });
+        const sources = Array.isArray(body?.sources) ? body.sources : [];
+        const mined = await client.mine(sources);
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_mine",
+          status: "processing",
+          progress: { step: "dedupe", pct: 55 },
+        });
+        await insertHookCorpusItems(jobId, mined.items);
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_mine",
+          status: "processing",
+          progress: { step: "persist", pct: 85 },
+        });
+        await updateJob({
+          id: jobId,
+          status: "succeeded",
+          completedAt: new Date(),
+          jobMeta: {
+            scrape: {
+              request_id: mined.request_id,
+              latency_ms: mined.latency_ms,
+              errors: mined.errors,
+            },
+          },
+        });
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_mine",
+          status: "succeeded",
+          progress: { step: "completed", pct: 100 },
+        });
+      } catch (e: any) {
+        const cat = categorizeError(e);
+        await updateJob({
+          id: jobId,
+          status: "failed",
+          error: (e as any)?.message || String(e),
+          errorCategory: cat,
+        });
+        broadcastJobEvent({
+          id: jobId,
+          type: "hooks_mine",
+          status: "failed",
+          error_category: cat,
+        });
+      }
+    });
+
+    res.json({
+      id: jobId,
+      run_id: (req as any).id || undefined,
+      status: "queued",
+    });
+  } catch (err) {
+    req.log?.error?.(err, "hooks.mine.failed");
+    res.status(500).json({ error: "hooks_mine_failed" });
+  }
 });
 
 app.post("/hooks/synthesize", async (req: Request, res: Response) => {
-  const body = req.body || {};
-  const jobId = `hooks_synthesize_${Date.now()}`;
-  await insertJob({
-    id: jobId,
-    type: "hooks_synthesize",
-    status: "queued",
-    startedAt: new Date(),
-  });
-  await updateJob({ id: jobId, runId: (req as any).id || null });
-  req.log?.info?.(
-    { run_id: (req as any).id, job_id: jobId },
-    "hooks.synthesize.queued",
-  );
-  broadcastJobEvent({
-    id: jobId,
-    type: "hooks_synthesize",
-    status: "queued",
-    runId: (req as any).id || undefined,
-  });
-  // Week 1: stub succeeds immediately
-  await updateJob({ id: jobId, status: "succeeded", completedAt: new Date() });
-  req.log?.info?.(
-    { run_id: (req as any).id, job_id: jobId },
-    "hooks.synthesize.succeeded",
-  );
-  broadcastJobEvent({
-    id: jobId,
-    type: "hooks_synthesize",
-    status: "succeeded",
-    runId: (req as any).id || undefined,
-  });
-  res.json({
-    id: jobId,
-    run_id: (req as any).id || undefined,
-    request: body,
-    status: "queued",
-    items: ((): any[] => {
-      const sample = [
-        {
-          hook_text: "Your CAC is not high, your loop is broken.",
-          angle: "contrarian",
-          icp: "DTC operators",
-          inspiration_url: "https://example.com/post/1",
-        },
-      ];
-      hookSynthStore.set(jobId, sample);
-      return sample;
-    })(),
-  });
+  try {
+    const body = (req.body || {}) as any;
+    const jobId = `hooks_synthesize_${Date.now()}`;
+    await insertJob({
+      id: jobId,
+      type: "hooks_synthesize",
+      status: "queued",
+      startedAt: new Date(),
+    });
+    await updateJob({
+      id: jobId,
+      runId: (req as any).id || null,
+      jobMeta: { request: body },
+    });
+    req.log?.info?.(
+      { run_id: (req as any).id, job_id: jobId },
+      "hooks.synthesize.queued",
+    );
+    broadcastJobEvent({
+      id: jobId,
+      type: "hooks_synthesize",
+      status: "queued",
+    });
+
+    broadcastJobEvent({
+      id: jobId,
+      type: "hooks_synthesize",
+      status: "processing",
+      progress: { step: "clustering", pct: 20 },
+    });
+    const sample = [
+      {
+        hook_text: "Your CAC is not high, your loop is broken.",
+        angle: "contrarian",
+        icp: "DTC operators",
+        risk_flags: ["implied guarantee"],
+        inspiration_url: "https://example.com/post/1",
+      },
+    ];
+    const mineId = String(body?.corpus_id || "");
+    await insertHookSynthItems(jobId, mineId || null, sample);
+    broadcastJobEvent({
+      id: jobId,
+      type: "hooks_synthesize",
+      status: "processing",
+      progress: { step: "persisted", pct: 90 },
+    });
+
+    await updateJob({
+      id: jobId,
+      status: "succeeded",
+      completedAt: new Date(),
+    });
+    broadcastJobEvent({
+      id: jobId,
+      type: "hooks_synthesize",
+      status: "succeeded",
+    });
+    res.json({
+      id: jobId,
+      run_id: (req as any).id || undefined,
+      status: "queued",
+      items: sample,
+    });
+  } catch (err) {
+    req.log?.error?.(err, "hooks.synthesize.failed");
+    res.status(500).json({ error: "hooks_synthesize_failed" });
+  }
 });
 
-app.get("/hooks/corpus/:id", (req: Request, res: Response) => {
-  const id = String(req.params.id);
-  res.json({ items: hookCorpusStore.get(id) || [] });
+app.get("/hooks/corpus", async (req: Request, res: Response) => {
+  try {
+    const mineId = String(req.query.mine_id || "").trim() || undefined;
+    const limit = Number(req.query.limit || 50);
+    const offset = Number(req.query.offset || 0);
+    const sort = String(req.query.sort || "").trim() || undefined;
+    const rows = await listHookCorpus({ mineId, limit, offset, sort });
+    res.json({ items: rows });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "hooks_corpus_list_failed" });
+  }
 });
 
-app.get("/hooks/synth/:id", (req: Request, res: Response) => {
-  const id = String(req.params.id);
-  res.json({ items: hookSynthStore.get(id) || [] });
+app.get("/hooks/synth", async (req: Request, res: Response) => {
+  try {
+    const mineId = String(req.query.mine_id || "").trim() || undefined;
+    const synthId = String(req.query.synth_id || "").trim() || undefined;
+    const limit = Number(req.query.limit || 50);
+    const offset = Number(req.query.offset || 0);
+    const approved =
+      typeof req.query.approved === "string"
+        ? req.query.approved === "true"
+        : undefined;
+    const sort = String(req.query.sort || "").trim() || undefined;
+    const rows = await listHookSynth({
+      mineId,
+      synthId,
+      limit,
+      offset,
+      approved,
+      sort,
+    });
+    res.json({ items: rows });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "hooks_synth_list_failed" });
+  }
+});
+
+app.patch("/hooks/synth/:id", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const { approved, hook_text, angle, icp, risk_flags, edited_hook_text } =
+      req.body || {};
+    await updateHookSynth(id, {
+      approved,
+      hook_text,
+      angle,
+      icp,
+      risk_flags,
+      edited_hook_text,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "hooks_synth_update_failed" });
+  }
 });
 
 app.post("/character/profile", (req: Request, res: Response) => {
@@ -238,14 +362,16 @@ async function createPrediction(
 ) {
   const token = process.env.REPLICATE_API_TOKEN || "";
   const client = new ReplicateClient(token);
-  const pred = await client.createPrediction(version, input);
-  return { id: pred.id };
+  return retryWithBackoff(async () => {
+    const pred = await client.createPrediction(version, input);
+    return { id: pred.id };
+  });
 }
 
 async function getPrediction(id: string) {
   const token = process.env.REPLICATE_API_TOKEN || "";
   const client = new ReplicateClient(token);
-  return client.getPrediction(id);
+  return retryWithBackoff(async () => client.getPrediction(id));
 }
 
 async function waitForPrediction(
@@ -255,7 +381,31 @@ async function waitForPrediction(
 ) {
   const token = process.env.REPLICATE_API_TOKEN || "";
   const client = new ReplicateClient(token);
-  return client.waitForPrediction(id, pollMs, timeoutMs);
+  return retryWithBackoff(async () =>
+    client.waitForPrediction(id, pollMs, timeoutMs),
+  );
+}
+
+async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3) {
+  let lastErr: any;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      const ms = Math.min(1000 * Math.pow(2, i) + Math.random() * 200, 8000);
+      await new Promise((r) => setTimeout(r, ms));
+    }
+  }
+  throw lastErr;
+}
+
+function categorizeError(err: any): string {
+  const msg = String(err?.message || err || "");
+  if (/rate limit|429/i.test(msg)) return "rate_limit";
+  if (/timeout/i.test(msg)) return "timeout";
+  if (/network|fetch failed|ENOTFOUND|ECONN/i.test(msg)) return "network";
+  return "api_error";
 }
 
 function extractSeed(pred: any): number | undefined {
@@ -282,10 +432,24 @@ function extractSeed(pred: any): number | undefined {
 
 app.post("/scenes/render", async (req: Request, res: Response) => {
   try {
-    // Simple concurrency guardrail
-    const queued = await countQueuedJobs();
-    if (queued >= guardrails.max_concurrency)
-      return res.status(429).json({ error: "concurrency_limit" });
+    // Async mode via queue
+    const idemKey =
+      String(
+        req.header("Idempotency-Key") || req.body?.idem_key || "",
+      ).trim() || null;
+    if (idemKey) {
+      const existing = await findJobByIdemKey("scene_render", idemKey);
+      if (existing) {
+        return res.json({
+          id: existing.id,
+          status: existing.status,
+          prediction_id: existing.prediction_id,
+          model_version: existing.model_version,
+          duration_ms: existing.duration_ms,
+          seed: existing.seed ?? null,
+        });
+      }
+    }
     const scene = (req.body?.scene ?? req.body) as any;
     if (!validateSceneSpec(scene)) {
       return res.status(400).json({
@@ -301,100 +465,15 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
         .json({ error: `Unsupported model: ${String((scene as any).model)}` });
 
     const jobId = `sceneimages_${Date.now()}`;
-    await insertJob({
+    await enqueueJob({
       id: jobId,
       type: "scene_render",
-      status: "queued",
-      startedAt: new Date(),
+      payload: { scene },
+      idemKey: idemKey || undefined,
+      jobMeta: { request: scene },
     });
     broadcastJobEvent({ id: jobId, type: "scene_render", status: "queued" });
-
-    const mapped = buildModelInputs(
-      modelKey as any,
-      (scene as any).model_inputs as Record<string, unknown>,
-    );
-    const pred = await createPrediction(
-      version,
-      mapped as Record<string, unknown>,
-    );
-    const finalPred = await waitForPrediction(pred.id);
-    const startedAt =
-      (finalPred as any).created_at ||
-      (finalPred as any).createdAt ||
-      undefined;
-    const completedAt =
-      (finalPred as any).completed_at ||
-      (finalPred as any).completedAt ||
-      undefined;
-    const durationMs =
-      startedAt && completedAt
-        ? Date.parse(completedAt) - Date.parse(startedAt)
-        : undefined;
-    const seed = extractSeed(finalPred);
-    req.log?.info?.(
-      { prediction_id: finalPred.id, version: finalPred.version, seed },
-      "scenes.render.complete",
-    );
-    await updateJob({
-      id: jobId,
-      status: "succeeded",
-      predictionId: finalPred.id,
-      modelVersion: finalPred.version,
-      runId: (req as any).id || undefined,
-      seed: seed ?? null,
-      completedAt: completedAt ? new Date(completedAt) : new Date(),
-      durationMs: durationMs ?? null,
-    });
-    broadcastJobEvent({
-      id: jobId,
-      type: "scene_render",
-      status: "succeeded",
-      predictionId: finalPred.id,
-      modelVersion: finalPred.version,
-    });
-    // Persist artifacts (image URLs) if present
-    try {
-      const out = (finalPred as any).output;
-      const urls: string[] = Array.isArray(out)
-        ? out.filter((u: any) => typeof u === "string")
-        : typeof out === "string"
-          ? [out]
-          : [];
-      for (const url of urls) {
-        const type = /\.mp4|\.webm/i.test(url)
-          ? "video"
-          : /\.png|\.jpg|\.jpeg|\.gif/i.test(url)
-            ? "image"
-            : null;
-        await insertArtifact({
-          jobId,
-          type: type || undefined,
-          url,
-          key: null,
-        });
-      }
-      // Placeholder cost entry
-      await insertCost({
-        jobId,
-        provider: "replicate",
-        amountUsd: 0.02,
-        meta: { route: "scenes.render", version: finalPred.version },
-      });
-    } catch (e) {
-      req.log?.warn?.(e, "artifact_persist_failed");
-    }
-    res.json({
-      id: jobId,
-      run_id: (req as any).id || undefined,
-      prediction_id: finalPred.id,
-      model_version: finalPred.version,
-      status: finalPred.status,
-      started_at: startedAt,
-      completed_at: completedAt,
-      duration_ms: durationMs,
-      seed: seed ?? null,
-      output: finalPred.output,
-    });
+    res.status(202).json({ id: jobId, status: "queued" });
   } catch (err) {
     req.log?.error?.(err);
     try {
@@ -419,9 +498,23 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
 
 app.post("/videos/assemble", async (req: Request, res: Response) => {
   try {
-    const queued = await countQueuedJobs();
-    if (queued >= guardrails.max_concurrency)
-      return res.status(429).json({ error: "concurrency_limit" });
+    // Async via queue
+    const idemKey =
+      String(
+        req.header("Idempotency-Key") || req.body?.idem_key || "",
+      ).trim() || null;
+    if (idemKey) {
+      const existing = await findJobByIdemKey("video_assemble", idemKey);
+      if (existing) {
+        return res.json({
+          id: existing.id,
+          status: existing.status,
+          prediction_id: existing.prediction_id,
+          model_version: existing.model_version,
+          duration_ms: existing.duration_ms,
+        });
+      }
+    }
     const manifest = (req.body?.manifest ?? req.body) as any;
     if (!validateVideoManifest(manifest as any)) {
       return res.status(400).json({
@@ -439,89 +532,15 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
         .json({ error: "Week 1: audio must be disabled (audio.mode=none)" });
     }
     const jobId = `video_${Date.now()}`;
-    await insertJob({
+    await enqueueJob({
       id: jobId,
       type: "video_assemble",
-      status: "queued",
-      startedAt: new Date(),
+      payload: { manifest },
+      idemKey: idemKey || undefined,
+      jobMeta: { request: manifest },
     });
     broadcastJobEvent({ id: jobId, type: "video_assemble", status: "queued" });
-    const prompt = `Create a short dynamic video with ${manifest.motion}. Transitions: ${manifest.transitions}. Scenes: ${(manifest.order || []).join(", ")}.`;
-    const pred = await createPrediction(MODEL_VERSIONS["veo-3"], { prompt });
-    const finalPred = await waitForPrediction(pred.id);
-    const startedAt =
-      (finalPred as any).created_at ||
-      (finalPred as any).createdAt ||
-      undefined;
-    const completedAt =
-      (finalPred as any).completed_at ||
-      (finalPred as any).completedAt ||
-      undefined;
-    const durationMs =
-      startedAt && completedAt
-        ? Date.parse(completedAt) - Date.parse(startedAt)
-        : undefined;
-    req.log?.info?.(
-      { prediction_id: finalPred.id, version: finalPred.version },
-      "videos.assemble.complete",
-    );
-    await updateJob({
-      id: jobId,
-      status: "succeeded",
-      predictionId: finalPred.id,
-      modelVersion: finalPred.version,
-      runId: (req as any).id || undefined,
-      completedAt: completedAt ? new Date(completedAt) : new Date(),
-      durationMs: durationMs ?? null,
-    });
-    broadcastJobEvent({
-      id: jobId,
-      type: "video_assemble",
-      status: "succeeded",
-      predictionId: finalPred.id,
-      modelVersion: finalPred.version,
-    });
-    // Persist artifacts (video or image URLs) if present and cost
-    try {
-      const out = (finalPred as any).output;
-      const urls: string[] = Array.isArray(out)
-        ? out.filter((u: any) => typeof u === "string")
-        : typeof out === "string"
-          ? [out]
-          : [];
-      for (const url of urls) {
-        const type = /\.mp4|\.webm/i.test(url)
-          ? "video"
-          : /\.png|\.jpg|\.jpeg|\.gif/i.test(url)
-            ? "image"
-            : null;
-        await insertArtifact({
-          jobId,
-          type: type || undefined,
-          url,
-          key: null,
-        });
-      }
-      await insertCost({
-        jobId,
-        provider: "replicate",
-        amountUsd: 0.05,
-        meta: { route: "videos.assemble", version: finalPred.version },
-      });
-    } catch (e) {
-      req.log?.warn?.(e, "artifact_persist_failed");
-    }
-    res.json({
-      id: jobId,
-      run_id: (req as any).id || undefined,
-      prediction_id: finalPred.id,
-      model_version: finalPred.version,
-      status: finalPred.status,
-      started_at: startedAt,
-      completed_at: completedAt,
-      duration_ms: durationMs,
-      output: finalPred.output,
-    });
+    res.status(202).json({ id: jobId, status: "queued" });
   } catch (err) {
     req.log?.error?.(err);
     try {
@@ -585,6 +604,19 @@ app.get("/jobs/recent", async (req: Request, res: Response) => {
   } catch (err) {
     req.log?.error?.(err);
     res.status(500).json({ error: "jobs_recent_failed" });
+  }
+});
+
+// Job detail (artifacts + costs + meta)
+app.get("/jobs/:id", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const job = await getJobDetail(id);
+    if (!job) return res.status(404).json({ error: "job_not_found" });
+    res.json(job);
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "job_detail_failed" });
   }
 });
 
@@ -670,8 +702,20 @@ app.post("/settings/guardrails", (req: Request, res: Response) => {
     typeof max_cost_per_batch_usd !== "number" ||
     typeof max_concurrency !== "number"
   )
-    return res.status(400).json({ error: "invalid_settings" });
+    return res
+      .status(400)
+      .json({ error: "invalid_settings", details: "numbers_required" });
+  if (max_concurrency < 1 || max_concurrency > 20)
+    return res
+      .status(400)
+      .json({ error: "invalid_settings", details: "max_concurrency_range" });
+  if (max_cost_per_batch_usd < 0 || max_cost_per_batch_usd > 10000)
+    return res
+      .status(400)
+      .json({ error: "invalid_settings", details: "max_cost_range" });
+  const prev = guardrails;
   guardrails = { max_cost_per_batch_usd, max_concurrency };
+  req.log?.info?.({ prev, next: guardrails }, "guardrails.updated");
   res.json({ ok: true, guardrails });
 });
 
@@ -802,6 +846,235 @@ app.get("/assets", async (req: Request, res: Response) => {
 });
 
 const port = Number(process.env.PORT || 4000);
-ensureTables().then(() =>
-  app.listen(port, () => logger.info({ port }, "API listening")),
-);
+ensureTables().then(() => {
+  startWorkerLoop();
+  app.listen(port, () => logger.info({ port }, "API listening"));
+});
+
+// Cancel queued job (best-effort)
+app.post("/jobs/:id/cancel", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const row = await cancelJob(id);
+    if (!row) return res.status(409).json({ error: "not_cancellable" });
+    broadcastJobEvent({ id, type: row.type, status: "cancelled" });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "cancel_failed" });
+  }
+});
+
+// Minimal in-process worker loop with concurrency guardrail
+async function startWorkerLoop() {
+  const workerId = `worker_${process.pid}_${Math.random().toString(36).slice(2, 6)}`;
+  async function tick() {
+    try {
+      const processing = await countProcessingJobs();
+      if (processing >= guardrails.max_concurrency) return;
+      const job = await claimNextQueuedJob(
+        ["scene_render", "video_assemble"],
+        workerId,
+      );
+      if (!job) return;
+      const payload = await getJobPayload(job.id);
+      if (!payload) return;
+      if (job.type === "scene_render")
+        await handleSceneRenderJob(job.id, payload.scene);
+      else if (job.type === "video_assemble")
+        await handleVideoAssembleJob(job.id, payload.manifest);
+    } catch (e) {
+      logger.warn({ err: e }, "worker.tick.error");
+    }
+  }
+  setInterval(tick, 750);
+}
+
+async function handleSceneRenderJob(jobId: string, scene: any) {
+  try {
+    broadcastJobEvent({
+      id: jobId,
+      type: "scene_render",
+      status: "processing",
+    });
+    const modelKey = String((scene as any).model ?? "");
+    const version = MODEL_VERSIONS[modelKey];
+    const mapped = buildModelInputs(
+      modelKey as any,
+      (scene as any).model_inputs as Record<string, unknown>,
+    );
+    const pred = await createPrediction(
+      version,
+      mapped as Record<string, unknown>,
+    );
+    let finalPred: any;
+    try {
+      finalPred = await waitForPrediction(pred.id);
+    } catch (e) {
+      const category = categorizeError(e);
+      await updateJob({
+        id: jobId,
+        status: "failed",
+        error: (e as any)?.message || String(e),
+        errorCategory: category,
+      });
+      broadcastJobEvent({
+        id: jobId,
+        type: "scene_render",
+        status: "failed",
+        error_category: category,
+      });
+      return;
+    }
+    const startedAt =
+      (finalPred as any).created_at ||
+      (finalPred as any).createdAt ||
+      undefined;
+    const completedAt =
+      (finalPred as any).completed_at ||
+      (finalPred as any).completedAt ||
+      undefined;
+    const durationMs =
+      startedAt && completedAt
+        ? Date.parse(completedAt) - Date.parse(startedAt)
+        : undefined;
+    const seed = extractSeed(finalPred);
+    await updateJob({
+      id: jobId,
+      status: "succeeded",
+      predictionId: finalPred.id,
+      modelVersion: finalPred.version,
+      seed: seed ?? null,
+      completedAt: completedAt ? new Date(completedAt) : new Date(),
+      durationMs: durationMs ?? null,
+      jobMeta: { response: finalPred },
+    });
+    broadcastJobEvent({
+      id: jobId,
+      type: "scene_render",
+      status: "succeeded",
+      predictionId: finalPred.id,
+      modelVersion: finalPred.version,
+    });
+    try {
+      const out = (finalPred as any).output;
+      const urls: string[] = Array.isArray(out)
+        ? out.filter((u: any) => typeof u === "string")
+        : typeof out === "string"
+          ? [out]
+          : [];
+      for (const url of urls) {
+        const type = /\.mp4|\.webm/i.test(url)
+          ? "video"
+          : /\.png|\.jpg|\.jpeg|\.gif/i.test(url)
+            ? "image"
+            : null;
+        await insertArtifact({
+          jobId,
+          type: type || undefined,
+          url,
+          key: null,
+        });
+      }
+      await insertCost({
+        jobId,
+        provider: "replicate",
+        amountUsd: 0.02,
+        meta: { route: "scenes.render", version: finalPred.version },
+      });
+    } catch (e) {
+      logger.warn({ err: e }, "artifact_persist_failed");
+    }
+  } catch (e) {
+    logger.error({ err: e }, "scene_render.worker_failed");
+  }
+}
+
+async function handleVideoAssembleJob(jobId: string, manifest: any) {
+  try {
+    broadcastJobEvent({
+      id: jobId,
+      type: "video_assemble",
+      status: "processing",
+    });
+    const prompt = `Create a short dynamic video with ${manifest.motion}. Transitions: ${manifest.transitions}. Scenes: ${(manifest.order || []).join(", ")}.`;
+    const pred = await createPrediction(MODEL_VERSIONS["veo-3"], { prompt });
+    let finalPred: any;
+    try {
+      finalPred = await waitForPrediction(pred.id);
+    } catch (e) {
+      const category = categorizeError(e);
+      await updateJob({
+        id: jobId,
+        status: "failed",
+        error: (e as any)?.message || String(e),
+        errorCategory: category,
+      });
+      broadcastJobEvent({
+        id: jobId,
+        type: "video_assemble",
+        status: "failed",
+        error_category: category,
+      });
+      return;
+    }
+    const startedAt =
+      (finalPred as any).created_at ||
+      (finalPred as any).createdAt ||
+      undefined;
+    const completedAt =
+      (finalPred as any).completed_at ||
+      (finalPred as any).completedAt ||
+      undefined;
+    const durationMs =
+      startedAt && completedAt
+        ? Date.parse(completedAt) - Date.parse(startedAt)
+        : undefined;
+    await updateJob({
+      id: jobId,
+      status: "succeeded",
+      predictionId: finalPred.id,
+      modelVersion: finalPred.version,
+      completedAt: completedAt ? new Date(completedAt) : new Date(),
+      durationMs: durationMs ?? null,
+      jobMeta: { response: finalPred },
+    });
+    broadcastJobEvent({
+      id: jobId,
+      type: "video_assemble",
+      status: "succeeded",
+      predictionId: finalPred.id,
+      modelVersion: finalPred.version,
+    });
+    try {
+      const out = (finalPred as any).output;
+      const urls: string[] = Array.isArray(out)
+        ? out.filter((u: any) => typeof u === "string")
+        : typeof out === "string"
+          ? [out]
+          : [];
+      for (const url of urls) {
+        const type = /\.mp4|\.webm/i.test(url)
+          ? "video"
+          : /\.png|\.jpg|\.jpeg|\.gif/i.test(url)
+            ? "image"
+            : null;
+        await insertArtifact({
+          jobId,
+          type: type || undefined,
+          url,
+          key: null,
+        });
+      }
+      await insertCost({
+        jobId,
+        provider: "replicate",
+        amountUsd: 0.05,
+        meta: { route: "videos.assemble", version: finalPred.version },
+      });
+    } catch (e) {
+      logger.warn({ err: e }, "artifact_persist_failed");
+    }
+  } catch (e) {
+    logger.error({ err: e }, "video_assemble.worker_failed");
+  }
+}

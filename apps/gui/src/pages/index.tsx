@@ -24,6 +24,8 @@ export default function Home() {
     failures: number;
     avg_render_time_ms: number;
     spend_today_usd: number;
+    failures_by_category?: Record<string, number>;
+    avg_queue_wait_ms?: number;
   } | null>(null);
   const { show } = useToast();
 
@@ -57,6 +59,20 @@ export default function Home() {
     es.onerror = () => setPing("disconnected");
     return () => es.close();
   }, [apiBase, fetchKpis]);
+
+  // Refresh guardrails tile when settings change without a hard reload
+  useEffect(() => {
+    const onGuardrails = () => void fetchKpis();
+    window.addEventListener(
+      "gpt5video_guardrails_updated",
+      onGuardrails as any,
+    );
+    return () =>
+      window.removeEventListener(
+        "gpt5video_guardrails_updated",
+        onGuardrails as any,
+      );
+  }, [fetchKpis]);
 
   useEffect(() => {
     const interval = setInterval(() => setKpis(computeKpis()), 1500);
@@ -208,12 +224,29 @@ export default function Home() {
                 warn={!serverKpis}
               />
               <Tile
+                label="Avg queue wait (ms)"
+                value={String(serverKpis?.avg_queue_wait_ms ?? "--")}
+                warn={!serverKpis}
+              />
+              <Tile
                 label="Spend today ($)"
                 value={
                   serverKpis ? serverKpis.spend_today_usd.toFixed(2) : "--"
                 }
                 warn={!serverKpis}
               />
+              <div className="rounded border p-3">
+                <div className="text-xs text-gray-500">
+                  Failures by category
+                </div>
+                <div className="mt-1 text-xs font-mono whitespace-pre-wrap">
+                  {serverKpis?.failures_by_category
+                    ? Object.entries(serverKpis.failures_by_category)
+                        .map(([k, v]) => `${k || "unknown"}: ${v}`)
+                        .join("\n")
+                    : "--"}
+                </div>
+              </div>
               <GuardrailsTile apiBase={apiBase} />
             </div>
           </div>
@@ -389,14 +422,28 @@ function GuardrailsTile({ apiBase }: { apiBase: string }) {
     max_concurrency: number;
   } | null>(null);
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+    const fetchCfg = async () => {
       try {
         const res = await fetch(`${apiBase}/settings/guardrails`);
         if (!res.ok) return;
         const data = await res.json();
-        setCfg(data);
+        if (!cancelled) setCfg(data);
       } catch {}
-    })();
+    };
+    void fetchCfg();
+    const onGuardrails = () => void fetchCfg();
+    window.addEventListener(
+      "gpt5video_guardrails_updated",
+      onGuardrails as any,
+    );
+    return () => {
+      cancelled = true;
+      window.removeEventListener(
+        "gpt5video_guardrails_updated",
+        onGuardrails as any,
+      );
+    };
   }, [apiBase]);
   const value = cfg
     ? `${cfg.max_concurrency} | $${cfg.max_cost_per_batch_usd.toFixed(2)}`

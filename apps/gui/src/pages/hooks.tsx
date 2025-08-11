@@ -3,6 +3,34 @@ import { useEffect, useMemo, useState } from "react";
 import { addJob, updateJob } from "../lib/jobs";
 import { useToast } from "../components/Toast";
 
+type HookCorpusRow = {
+  id: number;
+  mine_id: string;
+  platform?: string;
+  author?: string;
+  url?: string;
+  caption_or_transcript?: string;
+  detected_format?: string;
+  metrics?: any;
+  scraper?: string;
+  scrape_meta?: any;
+  created_at?: string;
+};
+
+type HookSynthRow = {
+  id: number;
+  synth_id: string;
+  mine_id?: string | null;
+  hook_text?: string;
+  angle?: string;
+  icp?: string;
+  risk_flags?: string[] | null;
+  inspiration_url?: string;
+  approved?: boolean;
+  edited_hook_text?: string | null;
+  created_at?: string;
+};
+
 export default function HooksPage() {
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
@@ -17,8 +45,8 @@ export default function HooksPage() {
       preview_url?: string;
     }>
   >([]);
-  const [corpus, setCorpus] = useState<any[]>([]);
-  const [synth, setSynth] = useState<any[]>([]);
+  const [corpus, setCorpus] = useState<HookCorpusRow[]>([]);
+  const [synth, setSynth] = useState<HookSynthRow[]>([]);
   const [lastMineId, setLastMineId] = useState<string>("");
   const [lastSynthId, setLastSynthId] = useState<string>("");
   const [sources, setSources] = useState<
@@ -57,6 +85,22 @@ export default function HooksPage() {
   );
   const [mineResp, setMineResp] = useState<any>(null);
   const [synthResp, setSynthResp] = useState<any>(null);
+  const [mineProgress, setMineProgress] = useState<string>("");
+  const [synthProgress, setSynthProgress] = useState<string>("");
+  const [mineErrorCat, setMineErrorCat] = useState<string>("");
+  const [corpusPage, setCorpusPage] = useState<{
+    limit: number;
+    offset: number;
+  }>({ limit: 20, offset: 0 });
+  const [synthPage, setSynthPage] = useState<{ limit: number; offset: number }>(
+    { limit: 20, offset: 0 },
+  );
+  const [synthEdit, setSynthEdit] = useState<{
+    open: boolean;
+    row?: HookSynthRow;
+  }>(() => ({ open: false }));
+  const [corpusSort, setCorpusSort] = useState<string>("created_at:desc");
+  const [synthSort, setSynthSort] = useState<string>("created_at:desc");
   useEffect(() => {
     (async () => {
       try {
@@ -67,6 +111,65 @@ export default function HooksPage() {
       } catch {}
     })();
   }, [apiBase]);
+
+  // SSE progress for mining/synthesis
+  useEffect(() => {
+    const es = new EventSource(`${apiBase}/jobs/stream`);
+    const onJob = (ev: MessageEvent) => {
+      try {
+        const data = JSON.parse((ev as MessageEvent).data || "{}");
+        if (data?.type === "hooks_mine") {
+          if (data.status === "processing" && data.progress)
+            setMineProgress(
+              `${data.progress.step || "processing"} ${data.progress.pct ?? 0}%`,
+            );
+          if (data.status === "succeeded") {
+            setMineProgress("done");
+            setMineErrorCat("");
+          }
+          if (data.status === "failed") {
+            setMineProgress("failed");
+            setMineErrorCat(String(data.error_category || ""));
+          }
+        }
+        if (data?.type === "hooks_synthesize") {
+          if (data.status === "processing" && data.progress)
+            setSynthProgress(
+              `${data.progress.step || "processing"} ${data.progress.pct ?? 0}%`,
+            );
+          if (data.status === "succeeded") setSynthProgress("done");
+        }
+      } catch {}
+    };
+    es.addEventListener("job", onJob as any);
+    return () => {
+      es.removeEventListener("job", onJob as any);
+      es.close();
+    };
+  }, [apiBase]);
+
+  async function refreshCorpus() {
+    const params = new URLSearchParams();
+    if (lastMineId) params.set("mine_id", lastMineId);
+    params.set("limit", String(corpusPage.limit));
+    params.set("offset", String(corpusPage.offset));
+    if (corpusSort) params.set("sort", corpusSort);
+    const res = await fetch(`${apiBase}/hooks/corpus?${params.toString()}`);
+    const data = await res.json();
+    setCorpus(Array.isArray(data.items) ? data.items : []);
+  }
+
+  async function refreshSynth() {
+    const params = new URLSearchParams();
+    if (lastSynthId) params.set("synth_id", lastSynthId);
+    if (lastMineId) params.set("mine_id", lastMineId);
+    params.set("limit", String(synthPage.limit));
+    params.set("offset", String(synthPage.offset));
+    if (synthSort) params.set("sort", synthSort);
+    const res = await fetch(`${apiBase}/hooks/synth?${params.toString()}`);
+    const data = await res.json();
+    setSynth(Array.isArray(data.items) ? data.items : []);
+  }
 
   useEffect(() => {
     try {
@@ -327,34 +430,145 @@ export default function HooksPage() {
               </tbody>
             </table>
           </div>
-          <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
-            <span>Last mine id:</span>
-            <span className="font-mono">{lastMineId || "--"}</span>
-            <button
-              className="rounded border px-2 py-0.5"
-              disabled={!lastMineId}
-              onClick={async () => {
-                if (!lastMineId) return;
-                const res = await fetch(
-                  `${apiBase}/hooks/corpus/${lastMineId}`,
-                );
-                const data = await res.json();
-                setCorpus(Array.isArray(data.items) ? data.items : []);
-              }}
-            >
-              Refresh corpus
-            </button>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-600">
+            <div className="flex items-center gap-2">
+              <span>Last mine id:</span>
+              <span className="font-mono">{lastMineId || "--"}</span>
+              {mineProgress && (
+                <span className="rounded bg-yellow-50 px-2 py-0.5 text-yellow-800">
+                  {mineProgress}
+                </span>
+              )}
+              {mineErrorCat && (
+                <span className="rounded bg-red-50 px-2 py-0.5 text-red-800">
+                  {mineErrorCat}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded border px-2 py-0.5"
+                disabled={!lastMineId}
+                onClick={refreshCorpus}
+              >
+                Refresh corpus
+              </button>
+              <label>
+                <select
+                  className="rounded border px-2 py-0.5"
+                  value={String(corpusPage.limit)}
+                  onChange={(e) =>
+                    setCorpusPage((p) => ({
+                      ...p,
+                      limit: Number(e.target.value || 20),
+                    }))
+                  }
+                >
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  className="rounded border px-2 py-0.5"
+                  onClick={() =>
+                    setCorpusPage((p) => ({
+                      ...p,
+                      offset: Math.max(0, p.offset - p.limit),
+                    }))
+                  }
+                >
+                  Prev
+                </button>
+                <button
+                  className="rounded border px-2 py-0.5"
+                  onClick={() =>
+                    setCorpusPage((p) => ({ ...p, offset: p.offset + p.limit }))
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
           {!!corpus.length && (
             <div className="mt-3">
-              <div className="text-sm font-medium mb-1">Corpus (sample)</div>
-              <ul className="list-disc pl-4 text-xs">
-                {corpus.slice(0, 5).map((c, i) => (
-                  <li key={i} className="truncate">
-                    {c.url || c.caption_or_transcript || JSON.stringify(c)}
-                  </li>
-                ))}
-              </ul>
+              <div className="text-sm font-medium mb-1">Corpus</div>
+              <div className="overflow-auto">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-600">
+                      <th
+                        className="px-2 py-1 cursor-pointer"
+                        onClick={() =>
+                          setCorpusSort((s) =>
+                            s === "created_at:asc"
+                              ? "created_at:desc"
+                              : "created_at:asc",
+                          )
+                        }
+                      >
+                        Platform
+                      </th>
+                      <th
+                        className="px-2 py-1 cursor-pointer"
+                        onClick={() =>
+                          setCorpusSort((s) =>
+                            s === "created_at:asc"
+                              ? "created_at:desc"
+                              : "created_at:asc",
+                          )
+                        }
+                      >
+                        Author
+                      </th>
+                      <th className="px-2 py-1">URL</th>
+                      <th
+                        className="px-2 py-1 cursor-pointer"
+                        onClick={() =>
+                          setCorpusSort((s) =>
+                            s === "views:asc" ? "views:desc" : "views:asc",
+                          )
+                        }
+                      >
+                        Views
+                      </th>
+                      <th className="px-2 py-1">Caption/Transcript</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {corpus.map((c) => (
+                      <tr key={c.id} className="border-t align-top">
+                        <td className="px-2 py-1">{c.platform || ""}</td>
+                        <td className="px-2 py-1">{c.author || ""}</td>
+                        <td className="px-2 py-1">
+                          {c.url ? (
+                            <a
+                              className="text-blue-600 underline"
+                              href={c.url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              link
+                            </a>
+                          ) : (
+                            ""
+                          )}
+                        </td>
+                        <td className="px-2 py-1">
+                          {Number((c.metrics || {}).views || 0)}
+                        </td>
+                        <td className="px-2 py-1">
+                          <div className="line-clamp-2 max-w-[360px]">
+                            {c.caption_or_transcript || ""}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
           {!!synth.length && (
@@ -506,36 +720,256 @@ export default function HooksPage() {
                 {JSON.stringify(synthResp, null, 2)}
               </pre>
             )}
-            <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
-              <span>Last synth id:</span>
-              <span className="font-mono">{lastSynthId || "--"}</span>
-              <button
-                className="rounded border px-2 py-0.5"
-                disabled={!lastSynthId}
-                onClick={async () => {
-                  if (!lastSynthId) return;
-                  const res = await fetch(
-                    `${apiBase}/hooks/synth/${lastSynthId}`,
-                  );
-                  const data = await res.json();
-                  setSynth(Array.isArray(data.items) ? data.items : []);
-                }}
-              >
-                Refresh synth
-              </button>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-600">
+              <div className="flex items-center gap-2">
+                <span>Last synth id:</span>
+                <span className="font-mono">{lastSynthId || "--"}</span>
+                {synthProgress && (
+                  <span className="rounded bg-yellow-50 px-2 py-0.5 text-yellow-800">
+                    {synthProgress}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="rounded border px-2 py-0.5"
+                  disabled={!lastSynthId}
+                  onClick={refreshSynth}
+                >
+                  Refresh synth
+                </button>
+                <label>
+                  <select
+                    className="rounded border px-2 py-0.5"
+                    value={String(synthPage.limit)}
+                    onChange={(e) =>
+                      setSynthPage((p) => ({
+                        ...p,
+                        limit: Number(e.target.value || 20),
+                      }))
+                    }
+                  >
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </label>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="rounded border px-2 py-0.5"
+                    onClick={() =>
+                      setSynthPage((p) => ({
+                        ...p,
+                        offset: Math.max(0, p.offset - p.limit),
+                      }))
+                    }
+                  >
+                    Prev
+                  </button>
+                  <button
+                    className="rounded border px-2 py-0.5"
+                    onClick={() =>
+                      setSynthPage((p) => ({
+                        ...p,
+                        offset: p.offset + p.limit,
+                      }))
+                    }
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
             {!!synth.length && (
               <div className="mt-2">
                 <div className="text-sm font-medium mb-1">
-                  Synthesized hooks (sample)
+                  Synthesized hooks
                 </div>
-                <ul className="list-disc pl-4 text-xs">
-                  {synth.slice(0, 5).map((h, i) => (
-                    <li key={i} className="truncate">
-                      {h.hook_text || JSON.stringify(h)}
-                    </li>
-                  ))}
-                </ul>
+                <div className="overflow-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-gray-600">
+                        <th
+                          className="px-2 py-1 cursor-pointer"
+                          onClick={() =>
+                            setSynthSort((s) =>
+                              s === "created_at:asc"
+                                ? "created_at:desc"
+                                : "created_at:asc",
+                            )
+                          }
+                        >
+                          Hook
+                        </th>
+                        <th
+                          className="px-2 py-1 cursor-pointer"
+                          onClick={() =>
+                            setSynthSort((s) =>
+                              s === "created_at:asc"
+                                ? "created_at:desc"
+                                : "created_at:asc",
+                            )
+                          }
+                        >
+                          Angle
+                        </th>
+                        <th
+                          className="px-2 py-1 cursor-pointer"
+                          onClick={() =>
+                            setSynthSort((s) =>
+                              s === "created_at:asc"
+                                ? "created_at:desc"
+                                : "created_at:asc",
+                            )
+                          }
+                        >
+                          ICP
+                        </th>
+                        <th
+                          className="px-2 py-1 cursor-pointer"
+                          onClick={() =>
+                            setSynthSort((s) =>
+                              s === "approved:asc"
+                                ? "approved:desc"
+                                : "approved:asc",
+                            )
+                          }
+                        >
+                          Approved
+                        </th>
+                        <th className="px-2 py-1">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {synth.map((h) => (
+                        <tr key={h.id} className="border-t align-top">
+                          <td className="px-2 py-1 max-w-[360px]">
+                            <div
+                              className="line-clamp-3"
+                              title={h.hook_text || ""}
+                            >
+                              {h.edited_hook_text || h.hook_text || ""}
+                            </div>
+                          </td>
+                          <td className="px-2 py-1">{h.angle || ""}</td>
+                          <td className="px-2 py-1">{h.icp || ""}</td>
+                          <td className="px-2 py-1">
+                            {h.approved ? "yes" : "no"}
+                          </td>
+                          <td className="px-2 py-1">
+                            <div className="flex items-center gap-2">
+                              <button
+                                className="rounded border px-2 py-0.5"
+                                onClick={() =>
+                                  setSynthEdit({ open: true, row: h })
+                                }
+                              >
+                                Edit
+                              </button>
+                              {!h.approved && (
+                                <button
+                                  className="rounded border px-2 py-0.5"
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch(
+                                        `${apiBase}/hooks/synth/${h.id}`,
+                                        {
+                                          method: "PATCH",
+                                          headers: {
+                                            "Content-Type": "application/json",
+                                          },
+                                          body: JSON.stringify({
+                                            approved: true,
+                                          }),
+                                        },
+                                      );
+                                      if (!res.ok)
+                                        throw new Error(String(res.statusText));
+                                      show({
+                                        title: "Approved",
+                                        variant: "success",
+                                      });
+                                      await refreshSynth();
+                                    } catch (e: any) {
+                                      show({
+                                        title: "Approve failed",
+                                        description: String(e?.message || e),
+                                        variant: "error",
+                                      });
+                                    }
+                                  }}
+                                >
+                                  Approve
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {synthEdit.open && synthEdit.row && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+                <div className="w-[520px] rounded border bg-white p-4 space-y-3">
+                  <div className="text-sm font-medium">Edit hook</div>
+                  <textarea
+                    className="h-32 w-full rounded border p-2 text-sm"
+                    defaultValue={
+                      synthEdit.row.edited_hook_text ||
+                      synthEdit.row.hook_text ||
+                      ""
+                    }
+                    onChange={(e) =>
+                      setSynthEdit((prev) => ({
+                        ...prev,
+                        row: { ...prev.row!, edited_hook_text: e.target.value },
+                      }))
+                    }
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      className="rounded border px-3 py-1.5 text-sm"
+                      onClick={() => setSynthEdit({ open: false })}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="rounded bg-black px-3 py-1.5 text-white text-sm"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(
+                            `${apiBase}/hooks/synth/${synthEdit.row!.id}`,
+                            {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                edited_hook_text:
+                                  synthEdit.row!.edited_hook_text ||
+                                  synthEdit.row!.hook_text ||
+                                  "",
+                              }),
+                            },
+                          );
+                          if (!res.ok) throw new Error(String(res.statusText));
+                          setSynthEdit({ open: false });
+                          show({ title: "Saved", variant: "success" });
+                          await refreshSynth();
+                        } catch (e: any) {
+                          show({
+                            title: "Save failed",
+                            description: String(e?.message || e),
+                            variant: "error",
+                          });
+                        }
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

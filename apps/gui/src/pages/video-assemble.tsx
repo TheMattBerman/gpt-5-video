@@ -19,6 +19,9 @@ export default function VideoAssemblePage() {
   const [resp, setResp] = useState<any>(null);
   const validate = useMemo(() => ajv.compile(videoManifestSchema as any), []);
   const { show } = useToast();
+  const [order, setOrder] = useState<string>("hook1_s1, hook1_s2");
+  const [transitions, setTransitions] = useState<string>("hard_cuts");
+  const [motion, setMotion] = useState<string>("subtle parallax");
 
   function validateText(t: string) {
     try {
@@ -36,6 +39,31 @@ export default function VideoAssemblePage() {
       setErrors([`JSON parse error: ${err?.message || String(err)}`]);
       return null;
     }
+  }
+
+  function buildManifestFromForm() {
+    const orderArr = order
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const candidate = {
+      order: orderArr,
+      transitions,
+      motion,
+      audio: { mode: "none" as const },
+    };
+    const ok = validate(candidate);
+    if (!ok) {
+      setErrors(
+        (validate.errors || []).map(
+          (e) => `${e.instancePath || "/"} ${e.message || "invalid"}`,
+        ),
+      );
+      show({ title: "Invalid manifest", variant: "error" });
+      return;
+    }
+    const pretty = JSON.stringify(candidate, null, 2);
+    setText(pretty);
   }
 
   async function submit() {
@@ -101,6 +129,42 @@ export default function VideoAssemblePage() {
           <div className="mb-3 text-sm text-gray-700">
             Build a minimal manifest, validate, and submit (audio.mode must be
             "none").
+          </div>
+          <div className="mb-3 grid grid-cols-3 gap-3 text-sm">
+            <label>
+              <div className="text-gray-700">
+                Order (comma-separated scene_ids)
+              </div>
+              <input
+                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                value={order}
+                onChange={(e) => setOrder(e.target.value)}
+              />
+            </label>
+            <label>
+              <div className="text-gray-700">Transitions</div>
+              <input
+                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                value={transitions}
+                onChange={(e) => setTransitions(e.target.value)}
+              />
+            </label>
+            <label>
+              <div className="text-gray-700">Motion</div>
+              <input
+                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                value={motion}
+                onChange={(e) => setMotion(e.target.value)}
+              />
+            </label>
+            <div className="col-span-3">
+              <button
+                className="rounded border px-3 py-1.5 text-sm"
+                onClick={buildManifestFromForm}
+              >
+                Populate JSON
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <textarea

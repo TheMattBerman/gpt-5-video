@@ -69,21 +69,21 @@ Acceptance (Week 1)
 
 ### Week 2 — Planning, synthesis, images, and review
 
-- [ ] Hook mining and synthesis
-  - [ ] ScrapeCreators adapter with rate limits, pagination, retries, dedupe
-  - [ ] GPT-5 clustering/synthesis endpoints wired (angle, ICP tag, flags)
-  - [ ] Corpus and synthesized hooks persisted with lineage
+- [~] Hook mining and synthesis
+  - [x] ScrapeCreators adapter with rate limits, pagination, retries, dedupe
+  - [~] GPT-5 clustering/synthesis endpoints wired (angle, ICP tag, flags) — basic heuristic/stub persisting synth rows with lineage
+  - [x] Corpus and synthesized hooks persisted with lineage
 - [ ] Character & Scenes
   - [ ] Character upload + bible approval; seed locking flows
   - [ ] Scenes page: Monaco JSON editor with schema autocomplete and diff
   - [ ] Audio panel per scene (dialogue or VO fields present but not enforced)
-- [ ] Renders workflow
-  - [ ] Scene image generation queue; grid view with compare
-  - [ ] Approve/reject, re-run with same/new seed
+- [~] Renders workflow
+  - [~] Scene image generation queue; grid view with compare (DB-backed queue + in-process worker added; SSE reflects status)
+  - [x] Approve/reject, re-run with same/new seed
   - [ ] Cost meter (estimate + actual) for images
-- [ ] Telemetry & reliability
-  - [ ] Cost ledger for GPT + Replicate per asset
-  - [ ] Retry/backoff, error categorization, idempotency keys
+- [~] Telemetry & reliability
+  - [~] Cost ledger for GPT + Replicate per asset (Replicate placeholders persisted; structure supports provider splits)
+  - [x] Retry/backoff, error categorization, idempotency keys
 
 Acceptance (Week 2)
 
@@ -103,7 +103,7 @@ Acceptance (Week 2)
   - [ ] CSV report (costs + basic performance placeholders)
 - [ ] Security & access
   - [ ] JWT auth with roles; signed URLs for uploads/downloads
-  - [ ] Guardrails: max cost per batch, concurrency caps
+  - [~] Guardrails: max cost per batch, concurrency caps (numeric range validation; optimistic UI updates; dashboard reflects changes without reload)
 - [ ] Observability and QA
   - [ ] Logs/metrics/traces; alerting on error spikes
   - [ ] E2E happy-path test; seed-lock rerun test; failure recovery test
@@ -166,7 +166,8 @@ Acceptance (Week 3)
 - [x] Character: upload, model, aspect ratio, mask rules, stability test, seed lock
 - [x] Scenes: Monaco editor with schema autocomplete + diff; audio panel
 - [ ] Renders: grid, compare, approve/reject, re-run with seed controls
-- [ ] Videos: manifest builder; audio tab; render + preview player
+- [~] Videos: manifest builder; audio tab; render + preview player
+  - [x] Manifest builder stub UI populates JSON; validation and submit (audio disabled)
 - [ ] Review & Export: checklist, presets, S3/download, CSV report
 
 ### 7) Security, Telemetry, and QA

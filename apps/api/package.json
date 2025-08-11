@@ -15,6 +15,7 @@
   "dependencies": {
     "@gpt5video/storage": "file:../../packages/clients/storage",
     "@gpt5video/replicate-client": "file:../../packages/clients/replicate",
+    "@gpt5video/scrapecreators": "file:../../packages/clients/scrapecreators",
     "@gpt5video/shared": "file:../../packages/shared",
     "@gpt5video/schemas": "file:../../packages/schemas",
     "cors": "^2.8.5",

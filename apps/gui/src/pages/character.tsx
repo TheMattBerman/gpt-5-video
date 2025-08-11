@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
 import { ajv } from "@gpt5video/shared";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -29,6 +29,10 @@ export default function CharacterPage() {
   const [styleInput, setStyleInput] = useState<string>("");
   const [maskInput, setMaskInput] = useState<string>("");
   const [seedLocked, setSeedLocked] = useState<boolean>(false);
+  const [winner, setWinner] = useState<{
+    seed?: number | null;
+    url?: string;
+  } | null>(null);
   const [testPrompts, setTestPrompts] = useState<string[]>([
     "mascot at a standing desk, soft key light",
     "mascot in startup office, confident expression",
@@ -50,6 +54,17 @@ export default function CharacterPage() {
     [],
   );
   const prefixRef = useRef<string>(`dev/character/${Date.now()}/`);
+
+  // Load winner from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("gpt5video_character_winner");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") setWinner(parsed);
+      }
+    } catch {}
+  }, []);
 
   const styleConstraints = useMemo(
     () =>
@@ -356,7 +371,15 @@ export default function CharacterPage() {
         </section>
 
         <section className="rounded border bg-white p-4 space-y-3">
-          <div className="text-sm font-medium">Stability test</div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium">Stability test</div>
+            {winner && (
+              <div className="text-xs text-gray-700">
+                Winner seed:{" "}
+                <span className="font-mono">{String(winner.seed ?? "-")}</span>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               {testPrompts.map((p, i) => (
@@ -435,9 +458,19 @@ export default function CharacterPage() {
                     {r.output && (
                       <button
                         className="rounded border px-2 py-1 text-xs"
-                        onClick={() => setSeedLocked(true)}
+                        onClick={() => {
+                          setSeedLocked(true);
+                          const next = { seed: r.seed ?? null, url: r.output };
+                          setWinner(next);
+                          try {
+                            localStorage.setItem(
+                              "gpt5video_character_winner",
+                              JSON.stringify(next),
+                            );
+                          } catch {}
+                        }}
                       >
-                        Lock seed
+                        Select as winner
                       </button>
                     )}
                   </div>

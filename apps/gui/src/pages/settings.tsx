@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const [maxConcurrency, setMaxConcurrency] = useState<number>(3);
   const [maxCost, setMaxCost] = useState<number>(10);
   const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     (async () => {
@@ -27,7 +28,11 @@ export default function SettingsPage() {
   }, [apiBase]);
 
   async function save() {
+    // Optimistic update
+    setSaving(true);
+    const prev = { maxConcurrency, maxCost };
     try {
+      show({ title: "Saving…" });
       const res = await fetch(`${apiBase}/settings/guardrails`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -36,14 +41,26 @@ export default function SettingsPage() {
           max_cost_per_batch_usd: Number(maxCost),
         }),
       });
-      if (!res.ok) throw new Error(String(res.statusText));
+      const data = await res.json();
+      if (!res.ok) {
+        // revert
+        setMaxConcurrency(prev.maxConcurrency);
+        setMaxCost(prev.maxCost);
+        throw new Error(String(data?.details || data?.error || res.statusText));
+      }
       show({ title: "Saved guardrails", variant: "success" });
+      try {
+        // Notify other pages (e.g., Dashboard) to refresh guardrails tile
+        window.dispatchEvent(new CustomEvent("gpt5video_guardrails_updated"));
+      } catch {}
     } catch (e: any) {
       show({
         title: "Save failed",
         description: String(e?.message || e),
         variant: "error",
       });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -90,9 +107,10 @@ export default function SettingsPage() {
               <div className="col-span-2">
                 <button
                   onClick={save}
-                  className="rounded bg-black px-3 py-1.5 text-white text-sm"
+                  className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
+                  disabled={saving}
                 >
-                  Save
+                  {saving ? "Saving…" : "Save"}
                 </button>
               </div>
             </div>

@@ -671,6 +671,7 @@
   version "0.1.0"
   resolved "file:apps/gui"
   dependencies:
+    "@monaco-editor/react" "^4.6.0"
     "@tanstack/react-query" "^5.51.1"
     ajv "^6.12.6"
     ajv-formats "^3.0.1"
@@ -685,6 +686,10 @@
 "@gpt5video/schemas@file:../../packages/schemas", "@gpt5video/schemas@file:/Users/matthewberman/Documents/Github/gpt-5-video/packages/schemas":
   version "0.1.0"
   resolved "file:packages/schemas"
+
+"@gpt5video/scrapecreators@file:../../packages/clients/scrapecreators", "@gpt5video/scrapecreators@file:/Users/matthewberman/Documents/Github/gpt-5-video/packages/clients/scrapecreators":
+  version "0.1.0"
+  resolved "file:packages/clients/scrapecreators"
 
 "@gpt5video/shared@file:../../packages/shared", "@gpt5video/shared@file:/Users/matthewberman/Documents/Github/gpt-5-video/packages/shared":
   version "0.1.0"

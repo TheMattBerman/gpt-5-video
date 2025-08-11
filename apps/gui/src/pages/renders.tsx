@@ -24,6 +24,10 @@ export default function RendersPage() {
   const [items, setItems] = useState<Job[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [tick, setTick] = useState<number>(0);
+  const [compareAUrl, setCompareAUrl] = useState<string | null>(null);
+  const [compareBUrl, setCompareBUrl] = useState<string | null>(null);
+  const [drawerJobId, setDrawerJobId] = useState<string | null>(null);
+  const [drawerJob, setDrawerJob] = useState<any | null>(null);
 
   const fetchData = async () => {
     try {
@@ -63,6 +67,40 @@ export default function RendersPage() {
     };
   }, [apiBase]);
 
+  // Persist compare selections in URL
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (compareAUrl) url.searchParams.set("a", compareAUrl);
+    else url.searchParams.delete("a");
+    if (compareBUrl) url.searchParams.set("b", compareBUrl);
+    else url.searchParams.delete("b");
+    window.history.replaceState({}, "", url.toString());
+  }, [compareAUrl, compareBUrl]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const a = url.searchParams.get("a");
+    const b = url.searchParams.get("b");
+    if (a) setCompareAUrl(a);
+    if (b) setCompareBUrl(b);
+  }, []);
+
+  // Load job detail when drawer opens
+  useEffect(() => {
+    if (!drawerJobId) {
+      setDrawerJob(null);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/jobs/${drawerJobId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setDrawerJob(data);
+      } catch {}
+    })();
+  }, [apiBase, drawerJobId]);
+
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
@@ -76,6 +114,54 @@ export default function RendersPage() {
         </header>
         <section className="rounded border bg-white p-4">
           <div className="text-sm font-medium mb-2">Recent renders</div>
+          {compareAUrl && compareBUrl && (
+            <div className="mb-3 rounded border p-2">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs text-gray-600">Compare</div>
+                <button
+                  className="text-xs underline"
+                  onClick={() => {
+                    setCompareAUrl(null);
+                    setCompareBUrl(null);
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded border p-1">
+                  {/\.mp4|\.webm/i.test(compareAUrl) ? (
+                    <video
+                      src={compareAUrl}
+                      controls
+                      className="w-full max-h-80 object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={compareAUrl}
+                      alt="A"
+                      className="w-full max-h-80 object-contain"
+                    />
+                  )}
+                </div>
+                <div className="rounded border p-1">
+                  {/\.mp4|\.webm/i.test(compareBUrl) ? (
+                    <video
+                      src={compareBUrl}
+                      controls
+                      className="w-full max-h-80 object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={compareBUrl}
+                      alt="B"
+                      className="w-full max-h-80 object-contain"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {loading ? (
             <div className="text-sm text-gray-600">Loading…</div>
           ) : (
@@ -83,14 +169,25 @@ export default function RendersPage() {
               {items.map((j) => (
                 <div key={j.id} className="rounded border p-3 space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="px-1.5 py-0.5 rounded bg-gray-100">
-                      {j.type}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded ${j.status === "succeeded" ? "bg-green-100 text-green-800" : j.status === "failed" ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}`}
-                    >
-                      {j.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100">
+                        {j.type}
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100">
+                        {j.status === "queued"
+                          ? "queued"
+                          : j.status === "processing"
+                            ? "processing"
+                            : j.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {typeof (j as any).cost_usd === "number" && (
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
+                          ${Number((j as any).cost_usd).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="text-xs text-gray-600">
                     id: <span className="font-mono">{j.id}</span>
@@ -119,8 +216,10 @@ export default function RendersPage() {
                     </div>
                   )}
                   {typeof (j as any).cost_usd === "number" && (
-                    <div className="text-xs text-gray-600">
-                      cost_usd:{" "}
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
+                        Cost (job)
+                      </span>
                       <span className="font-mono">
                         {Number((j as any).cost_usd).toFixed(2)}
                       </span>
@@ -159,6 +258,24 @@ export default function RendersPage() {
                                   {a.url}
                                 </a>
                               )}
+                            {a.url && (
+                              <div className="mt-1">
+                                <button
+                                  className="rounded border px-2 py-0.5 text-[10px]"
+                                  onClick={() => {
+                                    if (!compareAUrl) setCompareAUrl(a.url!);
+                                    else if (!compareBUrl)
+                                      setCompareBUrl(a.url!);
+                                    else {
+                                      setCompareAUrl(a.url!);
+                                      setCompareBUrl(null);
+                                    }
+                                  }}
+                                >
+                                  Select for compare
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -239,6 +356,97 @@ export default function RendersPage() {
                     >
                       Re-run
                     </button>
+                    <button
+                      className="rounded border px-2 py-1 text-xs"
+                      onClick={async () => {
+                        try {
+                          // For same-seed rerun, prompt for the last scene/manifest and inject seed
+                          const payload = await promptRerunPayload(j);
+                          if (!payload) return;
+                          if (j.seed && payload?.model_inputs)
+                            payload.model_inputs.seed = j.seed;
+                          const res = await fetch(
+                            `${apiBase}/jobs/${j.id}/rerun`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ payload }),
+                            },
+                          );
+                          const data = await res.json();
+                          if (res.ok)
+                            show({
+                              title: "Re-run with seed queued",
+                              variant: "success",
+                            });
+                          else
+                            show({
+                              title: "Re-run failed",
+                              description: String(
+                                data?.error || res.statusText,
+                              ),
+                              variant: "error",
+                            });
+                        } catch (e: any) {
+                          show({
+                            title: "Re-run failed",
+                            description: String(e?.message || e),
+                            variant: "error",
+                          });
+                        }
+                      }}
+                    >
+                      Re-run (same seed)
+                    </button>
+                    <button
+                      className="rounded border px-2 py-1 text-xs"
+                      onClick={async () => {
+                        try {
+                          const payload = await promptRerunPayload(j);
+                          if (!payload) return;
+                          if (payload?.model_inputs)
+                            payload.model_inputs.seed = Math.floor(
+                              Math.random() * 1_000_000_000,
+                            );
+                          const res = await fetch(
+                            `${apiBase}/jobs/${j.id}/rerun`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ payload }),
+                            },
+                          );
+                          const data = await res.json();
+                          if (res.ok)
+                            show({
+                              title: "Duplicate with new seed queued",
+                              variant: "success",
+                            });
+                          else
+                            show({
+                              title: "Duplicate failed",
+                              description: String(
+                                data?.error || res.statusText,
+                              ),
+                              variant: "error",
+                            });
+                        } catch (e: any) {
+                          show({
+                            title: "Duplicate failed",
+                            description: String(e?.message || e),
+                            variant: "error",
+                          });
+                        }
+                      }}
+                    >
+                      Duplicate (new seed)
+                    </button>
+                    <button
+                      className="rounded border px-2 py-1 text-xs"
+                      onClick={() => setDrawerJobId(j.id)}
+                    >
+                      Open job drawer
+                    </button>
                   </div>
                 </div>
               ))}
@@ -248,6 +456,101 @@ export default function RendersPage() {
             </div>
           )}
         </section>
+        {drawerJobId && (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            <div
+              className="absolute inset-0 bg-black/30"
+              onClick={() => setDrawerJobId(null)}
+            />
+            <div className="relative h-full w-full max-w-md bg-white shadow-xl border-l p-4 overflow-auto">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">Job details</div>
+                <button
+                  className="text-xs underline"
+                  onClick={() => setDrawerJobId(null)}
+                >
+                  Close
+                </button>
+              </div>
+              {!drawerJob ? (
+                <div className="mt-3 text-sm text-gray-600">Loading…</div>
+              ) : (
+                <div className="mt-3 space-y-2 text-xs">
+                  <div>
+                    id: <span className="font-mono">{drawerJob.id}</span>
+                  </div>
+                  <div>
+                    type: <span className="font-mono">{drawerJob.type}</span>
+                  </div>
+                  <div>
+                    status:{" "}
+                    <span className="font-mono">{drawerJob.status}</span>
+                  </div>
+                  {drawerJob.prediction_id && (
+                    <div>
+                      prediction_id:{" "}
+                      <span className="font-mono">
+                        {drawerJob.prediction_id}
+                      </span>
+                    </div>
+                  )}
+                  {drawerJob.model_version && (
+                    <div>
+                      model_version:{" "}
+                      <span className="font-mono">
+                        {drawerJob.model_version}
+                      </span>
+                    </div>
+                  )}
+                  {typeof drawerJob.duration_ms === "number" && (
+                    <div>
+                      duration_ms:{" "}
+                      <span className="font-mono">
+                        {String(drawerJob.duration_ms)}
+                      </span>
+                    </div>
+                  )}
+                  {typeof drawerJob.cost_usd === "number" && (
+                    <div>
+                      cost_usd:{" "}
+                      <span className="font-mono">
+                        {Number(drawerJob.cost_usd).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {Array.isArray(drawerJob.artifacts) &&
+                    drawerJob.artifacts.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-gray-700">Artifacts</div>
+                        <pre className="rounded border bg-gray-50 p-2 max-h-40 overflow-auto">
+                          {JSON.stringify(drawerJob.artifacts, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  {Array.isArray(drawerJob.costs) &&
+                    drawerJob.costs.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-gray-700">Cost ledger</div>
+                        <pre className="rounded border bg-gray-50 p-2 max-h-40 overflow-auto">
+                          {JSON.stringify(drawerJob.costs, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  {drawerJob.job_meta && (
+                    <div className="mt-2">
+                      <div className="text-gray-700">
+                        Job meta (request/response)
+                      </div>
+                      <pre className="rounded border bg-gray-50 p-2 max-h-60 overflow-auto">
+                        {JSON.stringify(drawerJob.job_meta, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

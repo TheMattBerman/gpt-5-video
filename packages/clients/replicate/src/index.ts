@@ -73,9 +73,10 @@ export class ReplicateClient {
 
   // Convenience helpers for common models (version strings can be overridden by caller if needed)
   static defaultVersions = {
-    ideogramCharacter: "ideogram-ai/ideogram-character",
-    imagen4: "google/imagen-4",
-    veo3: "google/veo-3",
+    // TODO: pin stable versions once finalized
+    ideogramCharacter: "ideogram-ai/ideogram-character@latest",
+    imagen4: "google/imagen-4@latest",
+    veo3: "google/veo-3@latest",
   } as const;
 
   async runIdeogramCharacter(
@@ -93,4 +94,36 @@ export class ReplicateClient {
     const pred = await this.createPrediction(version, input);
     return this.waitForPrediction(pred.id);
   }
+}
+
+// Helpers to extract common metadata consistently
+export function extractSeedFromOutput(
+  pred: ReplicatePrediction,
+): number | undefined {
+  const out = pred?.output as any;
+  if (!out) return undefined;
+  if (Array.isArray(out)) {
+    for (const item of out) {
+      if (item && typeof item === "object" && typeof item.seed === "number")
+        return item.seed;
+    }
+  } else if (typeof out === "object" && out && typeof out.seed === "number") {
+    return out.seed;
+  }
+  return undefined;
+}
+
+export function getPredictionSurface<TInput extends Record<string, unknown>>(
+  pred: ReplicatePrediction<TInput>,
+) {
+  return {
+    id: pred.id,
+    version: pred.version,
+    status: pred.status,
+    startedAt: pred.started_at,
+    completedAt: pred.completed_at,
+    seed: extractSeedFromOutput(pred),
+    output: pred.output,
+    error: pred.error,
+  } as const;
 }

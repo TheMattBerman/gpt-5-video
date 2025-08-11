@@ -101,6 +101,44 @@ export default function ScenesEditorPage() {
     if (editorRef.current) editorRef.current.setValue(pretty);
   }
 
+  function mergeAudioIntoJson() {
+    try {
+      const parsed = JSON.parse(text);
+      const asArray = Array.isArray(parsed) ? parsed : [parsed];
+      const audioFields: any = {
+        dialogue: dialogue.length ? dialogue : undefined,
+        vo_prompt: voPrompt || "",
+      };
+      const merged = asArray.map((s: any) => ({
+        ...s,
+        audio: {
+          ...(s.audio || {}),
+          ...audioFields,
+        },
+      }));
+      const next = Array.isArray(parsed) ? merged : merged[0];
+      const pretty = JSON.stringify(next, null, 2);
+      setText(pretty);
+      if (editorRef.current) editorRef.current.setValue(pretty);
+      validate(pretty);
+      show({ title: "Audio merged", variant: "success" });
+    } catch (e: any) {
+      show({
+        title: "Merge failed",
+        description: String(e?.message || e),
+        variant: "error",
+      });
+    }
+  }
+
+  function applyTemplate(kind: "ideogram" | "imagen4") {
+    const tpl = kind === "ideogram" ? exampleScene : imagen4Template;
+    const pretty = JSON.stringify(tpl, null, 2);
+    setText(pretty);
+    if (editorRef.current) editorRef.current.setValue(pretty);
+    validate(pretty);
+  }
+
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-6xl p-6 space-y-6">
@@ -197,6 +235,27 @@ export default function ScenesEditorPage() {
                 >
                   {showDiff ? "Hide diff" : "Show diff"}
                 </button>
+                <button
+                  onClick={mergeAudioIntoJson}
+                  className="rounded border px-3 py-1.5 text-sm"
+                >
+                  Merge Audio into JSON
+                </button>
+                <select
+                  className="rounded border px-2 py-1 text-sm"
+                  onChange={(e) => {
+                    const v = e.target.value as any;
+                    if (!v) return;
+                    applyTemplate(v);
+                  }}
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    Templates
+                  </option>
+                  <option value="ideogram">Ideogram Character</option>
+                  <option value="imagen4">Imagen 4 stub</option>
+                </select>
               </div>
               {resp && (
                 <pre className="mt-3 max-h-60 overflow-auto rounded border bg-gray-50 p-2 text-xs">
@@ -306,4 +365,19 @@ const exampleScene: SceneSpec = {
     ],
     vo_prompt: "",
   },
+};
+
+const imagen4Template: SceneSpec = {
+  scene_id: "hook1_s1",
+  duration_s: 2.0,
+  composition: "product glamour, clean backdrop",
+  props: [],
+  overlays: [{ type: "lower_third", text: "Your brand here" }],
+  model: "imagen-4",
+  model_inputs: {
+    prompt: "studio product photo, soft shadows, crisp edges",
+    aspect_ratio: "9:16",
+    negative_prompt: "blurry, low quality",
+  },
+  audio: { dialogue: [], vo_prompt: "" },
 };

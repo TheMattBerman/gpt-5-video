@@ -16,6 +16,13 @@ export async function ensureTables() {
       run_id text,
       seed bigint,
       job_meta jsonb,
+      error_category text,
+      idem_key text unique,
+      payload jsonb,
+      locked_at timestamptz,
+      locked_by text,
+      queue_wait_ms integer,
+      cancelled boolean default false,
       decision text,
       decision_note text,
       started_at timestamptz,
@@ -31,6 +38,24 @@ export async function ensureTables() {
   // Backfill column if schema existed before
   await pool.query(`alter table jobs add column if not exists error text;`);
   await pool.query(`alter table jobs add column if not exists job_meta jsonb;`);
+  await pool.query(
+    `alter table jobs add column if not exists error_category text;`,
+  );
+  await pool.query(`alter table jobs add column if not exists idem_key text;`);
+  await pool.query(`alter table jobs add column if not exists payload jsonb;`);
+  await pool.query(
+    `alter table jobs add column if not exists locked_at timestamptz;`,
+  );
+  await pool.query(`alter table jobs add column if not exists locked_by text;`);
+  await pool.query(
+    `alter table jobs add column if not exists queue_wait_ms integer;`,
+  );
+  await pool.query(
+    `alter table jobs add column if not exists cancelled boolean default false;`,
+  );
+  await pool.query(
+    `create unique index if not exists idx_jobs_idem_key on jobs(idem_key) where idem_key is not null;`,
+  );
   await pool.query(`alter table jobs add column if not exists decision text;`);
   await pool.query(
     `alter table jobs add column if not exists decision_note text;`,
@@ -61,6 +86,48 @@ export async function ensureTables() {
   await pool.query(
     `create index if not exists idx_cost_ledger_job_id on cost_ledger(job_id);`,
   );
+
+  // Hooks: corpus and synth tables
+  await pool.query(`
+    create table if not exists hook_corpus (
+      id bigserial primary key,
+      mine_id text not null,
+      platform text,
+      author text,
+      url text,
+      caption_or_transcript text,
+      detected_format text,
+      metrics jsonb,
+      scraper text,
+      scrape_meta jsonb,
+      created_at timestamptz default now()
+    );
+  `);
+  await pool.query(
+    `create index if not exists idx_hook_corpus_mine_id on hook_corpus(mine_id);`,
+  );
+
+  await pool.query(`
+    create table if not exists hook_synth (
+      id bigserial primary key,
+      synth_id text not null,
+      mine_id text,
+      hook_text text,
+      angle text,
+      icp text,
+      risk_flags text[],
+      inspiration_url text,
+      approved boolean default false,
+      edited_hook_text text,
+      created_at timestamptz default now()
+    );
+  `);
+  await pool.query(
+    `create index if not exists idx_hook_synth_mine_id on hook_synth(mine_id);`,
+  );
+  await pool.query(
+    `create index if not exists idx_hook_synth_synth_id on hook_synth(synth_id);`,
+  );
 }
 
 export async function insertJob(job: {
@@ -68,14 +135,16 @@ export async function insertJob(job: {
   type: string;
   status: string;
   startedAt?: Date | null;
+  payload?: Record<string, unknown> | null;
 }) {
   await pool.query(
-    `insert into jobs (id, type, status, started_at) values ($1, $2, $3, $4) on conflict (id) do nothing`,
+    `insert into jobs (id, type, status, started_at, payload) values ($1, $2, $3, $4, $5) on conflict (id) do nothing`,
     [
       job.id,
       job.type,
       job.status,
       job.startedAt ? job.startedAt.toISOString() : null,
+      job.payload ? JSON.stringify(job.payload) : null,
     ],
   );
 }
@@ -90,6 +159,14 @@ export async function updateJob(job: {
   completedAt?: Date | null;
   durationMs?: number | null;
   error?: string | null;
+  errorCategory?: string | null;
+  jobMeta?: Record<string, unknown> | null;
+  idemKey?: string | null;
+  queueWaitMs?: number | null;
+  lockedAt?: Date | null;
+  lockedBy?: string | null;
+  payload?: Record<string, unknown> | null;
+  cancelled?: boolean | null;
 }) {
   const fields: string[] = [];
   const values: any[] = [];
@@ -108,6 +185,17 @@ export async function updateJob(job: {
     add("completed_at", job.completedAt ? job.completedAt.toISOString() : null);
   if (job.durationMs !== undefined) add("duration_ms", job.durationMs);
   if (job.error !== undefined) add("error", job.error);
+  if (job.errorCategory !== undefined) add("error_category", job.errorCategory);
+  if (job.jobMeta !== undefined)
+    add("job_meta", job.jobMeta ? JSON.stringify(job.jobMeta) : null);
+  if (job.idemKey !== undefined) add("idem_key", job.idemKey);
+  if (job.queueWaitMs !== undefined) add("queue_wait_ms", job.queueWaitMs);
+  if (job.lockedAt !== undefined)
+    add("locked_at", job.lockedAt ? job.lockedAt.toISOString() : null);
+  if (job.lockedBy !== undefined) add("locked_by", job.lockedBy);
+  if (job.payload !== undefined)
+    add("payload", job.payload ? JSON.stringify(job.payload) : null);
+  if (job.cancelled !== undefined) add("cancelled", job.cancelled);
   if (!fields.length) return;
   await pool.query(
     `update jobs set ${fields.join(", ")} where id = $1`,
@@ -167,12 +255,19 @@ export async function countQueuedJobs() {
   return rows[0]?.c ?? 0;
 }
 
+export async function countProcessingJobs() {
+  const { rows } = await pool.query(
+    `select count(*)::int as c from jobs where status = 'processing'`,
+  );
+  return rows[0]?.c ?? 0;
+}
+
 export async function getKpisToday() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const startIso = start.toISOString();
   const inProgressP = pool.query(
-    `select count(*)::int as c from jobs where status = 'queued'`,
+    `select count(*)::int as c from jobs where status in ('queued','processing')`,
   );
   const failuresP = pool.query(
     `select count(*)::int as c from jobs where status = 'failed' and created_at >= $1`,
@@ -186,16 +281,300 @@ export async function getKpisToday() {
     `select coalesce(sum(amount_usd), 0)::float as s from cost_ledger where created_at >= $1`,
     [startIso],
   );
-  const [inProgress, failures, avgRender, spend] = await Promise.all([
-    inProgressP,
-    failuresP,
-    avgRenderP,
-    spendP,
-  ]);
+  const failuresByCatP = pool.query(
+    `select error_category, count(*)::int as c from jobs where status = 'failed' and created_at >= $1 group by error_category`,
+    [startIso],
+  );
+  const avgQueueWaitP = pool.query(
+    `select coalesce(round(avg(queue_wait_ms))::int, 0) as avg from jobs where started_at is not null and created_at >= $1`,
+    [startIso],
+  );
+  const [inProgress, failures, avgRender, spend, failuresByCat, avgQueueWait] =
+    await Promise.all([
+      inProgressP,
+      failuresP,
+      avgRenderP,
+      spendP,
+      failuresByCatP,
+      avgQueueWaitP,
+    ]);
   return {
     in_progress: inProgress.rows[0]?.c ?? 0,
     failures: failures.rows[0]?.c ?? 0,
     avg_render_time_ms: avgRender.rows[0]?.avg ?? 0,
     spend_today_usd: spend.rows[0]?.s ?? 0,
+    failures_by_category: (failuresByCat.rows || []).reduce(
+      (acc: Record<string, number>, r: any) => {
+        const k = r.error_category || "unknown";
+        acc[k] = Number(r.c || 0);
+        return acc;
+      },
+      {},
+    ),
+    avg_queue_wait_ms: avgQueueWait.rows[0]?.avg ?? 0,
   };
+}
+
+export async function getJobDetail(id: string) {
+  const { rows } = await pool.query(
+    `select j.*,
+            coalesce(json_agg(a.*) filter (where a.id is not null), '[]') as artifacts,
+            coalesce(sum(c.amount_usd) filter (where c.id is not null), 0) as cost_usd,
+            coalesce(json_agg(c.*) filter (where c.id is not null), '[]') as costs
+     from jobs j
+     left join artifacts a on a.job_id = j.id
+     left join cost_ledger c on c.job_id = j.id
+     where j.id = $1
+     group by j.id`,
+    [id],
+  );
+  return rows[0] || null;
+}
+
+export async function findJobByIdemKey(type: string, idemKey: string) {
+  const { rows } = await pool.query(
+    `select * from jobs where type = $1 and idem_key = $2 limit 1`,
+    [type, idemKey],
+  );
+  return rows[0] || null;
+}
+
+export async function enqueueJob(row: {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  idemKey?: string | null;
+  jobMeta?: Record<string, unknown> | null;
+}) {
+  await pool.query(
+    `insert into jobs (id, type, status, started_at, payload, idem_key, job_meta)
+     values ($1, $2, 'queued', now(), $3, $4, $5)
+     on conflict (id) do nothing`,
+    [
+      row.id,
+      row.type,
+      JSON.stringify(row.payload),
+      row.idemKey || null,
+      row.jobMeta ? JSON.stringify(row.jobMeta) : null,
+    ],
+  );
+}
+
+export async function claimNextQueuedJob(types: string[], workerId: string) {
+  // Optimistic claim: pick oldest queued job of supported type
+  const { rows } = await pool.query(
+    `select id from jobs where status = 'queued' and cancelled = false and type = any($1)
+     order by created_at asc limit 1`,
+    [types],
+  );
+  const id = rows[0]?.id as string | undefined;
+  if (!id) return null;
+  const lockRes = await pool.query(
+    `update jobs set status = 'processing', locked_by = $2, locked_at = now(), started_at = coalesce(started_at, now()), queue_wait_ms = extract(epoch from (now() - created_at))::int * 1000
+     where id = $1 and status = 'queued' and cancelled = false and locked_at is null
+     returning *`,
+    [id, workerId],
+  );
+  return lockRes.rows[0] || null;
+}
+
+export async function getJobPayload(id: string) {
+  const { rows } = await pool.query(`select payload from jobs where id = $1`, [
+    id,
+  ]);
+  return rows[0]?.payload || null;
+}
+
+export async function cancelJob(id: string) {
+  const { rows } = await pool.query(
+    `update jobs set status = 'cancelled', cancelled = true, completed_at = now() where id = $1 and status = 'queued' returning *`,
+    [id],
+  );
+  return rows[0] || null;
+}
+
+export async function insertHookCorpusItems(
+  mineId: string,
+  items: Array<{
+    platform?: string;
+    author?: string;
+    url?: string;
+    caption_or_transcript?: string;
+    detected_format?: string;
+    metrics?: unknown;
+    scraper?: string;
+    scrape_meta?: unknown;
+  }>,
+) {
+  if (!items?.length) return;
+  const text = `insert into hook_corpus
+    (mine_id, platform, author, url, caption_or_transcript, detected_format, metrics, scraper, scrape_meta)
+    values ${items
+      .map(
+        (_i, idx) =>
+          `($${idx * 9 + 1}, $${idx * 9 + 2}, $${idx * 9 + 3}, $${idx * 9 + 4}, $${idx * 9 + 5}, $${idx * 9 + 6}, $${idx * 9 + 7}, $${idx * 9 + 8}, $${idx * 9 + 9})`,
+      )
+      .join(", ")}`;
+  const values: any[] = [];
+  for (const it of items) {
+    values.push(
+      mineId,
+      it.platform || null,
+      it.author || null,
+      it.url || null,
+      it.caption_or_transcript || null,
+      it.detected_format || null,
+      it.metrics ? JSON.stringify(it.metrics) : null,
+      it.scraper || null,
+      it.scrape_meta ? JSON.stringify(it.scrape_meta) : null,
+    );
+  }
+  await pool.query(text, values);
+}
+
+export async function listHookCorpus(params: {
+  mineId?: string;
+  limit?: number;
+  offset?: number;
+  sort?: string; // e.g., 'views:desc' or 'created_at:desc'
+}) {
+  const limit = Math.min(Math.max(1, Number(params.limit || 50)), 500);
+  const offset = Math.max(0, Number(params.offset || 0));
+  const args: any[] = [];
+  let where = "";
+  if (params.mineId) {
+    args.push(params.mineId);
+    where = `where mine_id = $${args.length}`;
+  }
+  // Sorting
+  const sort = String(params.sort || "");
+  let order = "id desc";
+  if (/^views:desc$/i.test(sort))
+    order = "(coalesce((metrics->>'views')::int,0)) desc, id desc";
+  else if (/^views:asc$/i.test(sort))
+    order = "(coalesce((metrics->>'views')::int,0)) asc, id desc";
+  else if (/^created_at:asc$/i.test(sort)) order = "created_at asc";
+  else if (/^created_at:desc$/i.test(sort)) order = "created_at desc";
+  const { rows } = await pool.query(
+    `select * from hook_corpus ${where} order by ${order} limit $${args.push(
+      limit,
+    )} offset $${args.push(offset)}`,
+    args,
+  );
+  return rows;
+}
+
+export async function insertHookSynthItems(
+  synthId: string,
+  mineId: string | null,
+  items: Array<{
+    hook_text?: string;
+    angle?: string;
+    icp?: string;
+    risk_flags?: string[];
+    inspiration_url?: string;
+  }>,
+) {
+  if (!items?.length) return;
+  const text = `insert into hook_synth
+    (synth_id, mine_id, hook_text, angle, icp, risk_flags, inspiration_url)
+    values ${items
+      .map(
+        (_i, idx) =>
+          `($${idx * 7 + 1}, $${idx * 7 + 2}, $${idx * 7 + 3}, $${idx * 7 + 4}, $${idx * 7 + 5}, $${idx * 7 + 6}, $${idx * 7 + 7})`,
+      )
+      .join(", ")}`;
+  const values: any[] = [];
+  for (const it of items) {
+    values.push(
+      synthId,
+      mineId,
+      it.hook_text || null,
+      it.angle || null,
+      it.icp || null,
+      it.risk_flags
+        ? `{${it.risk_flags.map((s) => `"${s}"`).join(",")}}`
+        : null,
+      it.inspiration_url || null,
+    );
+  }
+  await pool.query(text, values);
+}
+
+export async function listHookSynth(params: {
+  mineId?: string;
+  synthId?: string;
+  limit?: number;
+  offset?: number;
+  approved?: boolean;
+  sort?: string; // e.g., 'created_at:desc'
+}) {
+  const limit = Math.min(Math.max(1, Number(params.limit || 50)), 500);
+  const offset = Math.max(0, Number(params.offset || 0));
+  const clauses: string[] = [];
+  const args: any[] = [];
+  if (params.mineId) {
+    args.push(params.mineId);
+    clauses.push(`mine_id = $${args.length}`);
+  }
+  if (params.synthId) {
+    args.push(params.synthId);
+    clauses.push(`synth_id = $${args.length}`);
+  }
+  if (typeof params.approved === "boolean") {
+    args.push(params.approved);
+    clauses.push(`approved = $${args.length}`);
+  }
+  const where = clauses.length ? `where ${clauses.join(" and ")}` : "";
+  const sort = String(params.sort || "");
+  let order = "id desc";
+  if (/^created_at:asc$/i.test(sort)) order = "created_at asc";
+  else if (/^created_at:desc$/i.test(sort)) order = "created_at desc";
+  else if (/^approved:asc$/i.test(sort)) order = "approved asc, id desc";
+  else if (/^approved:desc$/i.test(sort)) order = "approved desc, id desc";
+  const { rows } = await pool.query(
+    `select * from hook_synth ${where} order by ${order} limit $${args.push(
+      limit,
+    )} offset $${args.push(offset)}`,
+    args,
+  );
+  return rows;
+}
+
+export async function updateHookSynth(
+  id: number,
+  fields: {
+    hook_text?: string;
+    angle?: string;
+    icp?: string;
+    risk_flags?: string[];
+    approved?: boolean;
+    edited_hook_text?: string | null;
+  },
+) {
+  const sets: string[] = [];
+  const args: any[] = [id];
+  let i = 1;
+  const add = (col: string, val: any) => {
+    sets.push(`${col} = $${++i}`);
+    args.push(val);
+  };
+  if (fields.hook_text !== undefined) add("hook_text", fields.hook_text);
+  if (fields.angle !== undefined) add("angle", fields.angle);
+  if (fields.icp !== undefined) add("icp", fields.icp);
+  if (fields.risk_flags !== undefined)
+    add(
+      "risk_flags",
+      fields.risk_flags
+        ? `{${fields.risk_flags.map((s) => `"${s}"`).join(",")}}`
+        : null,
+    );
+  if (fields.approved !== undefined) add("approved", fields.approved);
+  if (fields.edited_hook_text !== undefined)
+    add("edited_hook_text", fields.edited_hook_text);
+  if (!sets.length) return;
+  await pool.query(
+    `update hook_synth set ${sets.join(", ")} where id = $1`,
+    args,
+  );
 }
