@@ -269,7 +269,9 @@ export async function getRecentJobs(limit = 50) {
   const { rows } = await pool.query(
     `select j.*,
             coalesce(json_agg(a.*) filter (where a.id is not null), '[]') as artifacts,
-            coalesce(sum(c.amount_usd) filter (where c.id is not null), 0) as cost_usd
+            coalesce(sum(c.amount_usd) filter (where c.id is not null), 0) as cost_usd,
+            coalesce(sum(c.amount_usd) filter (where c.id is not null and (c.meta->>'kind') = 'estimate'), 0) as cost_estimate_usd,
+            coalesce(sum(c.amount_usd) filter (where c.id is not null and (c.meta->>'kind') = 'actual'), 0) as cost_actual_usd
      from jobs j
      left join artifacts a on a.job_id = j.id
      left join cost_ledger c on c.job_id = j.id
@@ -328,6 +330,17 @@ export async function getKpisToday() {
     `select coalesce(round(avg(queue_wait_ms))::int, 0) as avg from jobs where started_at is not null and created_at >= $1`,
     [startIso],
   );
+  const avgCostPerRenderP = pool.query(
+    `with per_job_actual as (
+       select j.id, coalesce(sum(c.amount_usd),0)::float as actual
+       from jobs j
+       left join cost_ledger c on c.job_id = j.id and (c.meta->>'kind') = 'actual'
+       where j.type in ('scene_render','video_assemble') and j.created_at >= $1
+       group by j.id
+     )
+     select coalesce(avg(actual),0)::float as avg from per_job_actual`,
+    [startIso],
+  );
   const [inProgress, failures, avgRender, spend, failuresByCat, avgQueueWait] =
     await Promise.all([
       inProgressP,
@@ -338,6 +351,7 @@ export async function getKpisToday() {
       avgQueueWaitP,
       processingCountP,
       queuedCountP,
+      avgCostPerRenderP,
     ]);
   return {
     in_progress: inProgress.rows[0]?.c ?? 0,
@@ -355,6 +369,8 @@ export async function getKpisToday() {
     avg_queue_wait_ms: avgQueueWait.rows[0]?.avg ?? 0,
     processing_count: (processingCountP as any).rows?.[0]?.c ?? 0,
     queued_count: (queuedCountP as any).rows?.[0]?.c ?? 0,
+    avg_cost_per_render_today_usd:
+      (avgCostPerRenderP as any).rows?.[0]?.avg ?? 0,
   };
 }
 
@@ -363,6 +379,8 @@ export async function getJobDetail(id: string) {
     `select j.*,
             coalesce(json_agg(a.*) filter (where a.id is not null), '[]') as artifacts,
             coalesce(sum(c.amount_usd) filter (where c.id is not null), 0) as cost_usd,
+            coalesce(sum(c.amount_usd) filter (where c.id is not null and (c.meta->>'kind') = 'estimate'), 0) as cost_estimate_usd,
+            coalesce(sum(c.amount_usd) filter (where c.id is not null and (c.meta->>'kind') = 'actual'), 0) as cost_actual_usd,
             coalesce(json_agg(c.*) filter (where c.id is not null), '[]') as costs
      from jobs j
      left join artifacts a on a.job_id = j.id
@@ -435,6 +453,14 @@ export async function cancelJob(id: string) {
     [id],
   );
   return rows[0] || null;
+}
+
+export async function getJobAttemptCount(id: string) {
+  const { rows } = await pool.query(
+    `select attempt_count from jobs where id = $1`,
+    [id],
+  );
+  return Number(rows[0]?.attempt_count || 0);
 }
 
 export async function insertHookCorpusItems(

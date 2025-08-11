@@ -28,6 +28,7 @@ export default function Home() {
     avg_queue_wait_ms?: number;
     processing_count?: number;
     queued_count?: number;
+    avg_cost_per_render_today_usd?: number;
   } | null>(null);
   const { show } = useToast();
 
@@ -243,6 +244,15 @@ export default function Home() {
                 label="Spend today ($)"
                 value={
                   serverKpis ? serverKpis.spend_today_usd.toFixed(2) : "--"
+                }
+                warn={!serverKpis}
+              />
+              <Tile
+                label="Avg cost/render ($)"
+                value={
+                  serverKpis
+                    ? (serverKpis.avg_cost_per_render_today_usd || 0).toFixed(2)
+                    : "--"
                 }
                 warn={!serverKpis}
               />

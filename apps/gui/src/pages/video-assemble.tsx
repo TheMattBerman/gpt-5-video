@@ -22,6 +22,18 @@ export default function VideoAssemblePage() {
   const [order, setOrder] = useState<string>("hook1_s1, hook1_s2");
   const [transitions, setTransitions] = useState<string>("hard_cuts");
   const [motion, setMotion] = useState<string>("subtle parallax");
+  // Audio tab fields
+  const [audioMode, setAudioMode] = useState<"none" | "voiceover" | "dialogue">(
+    "none",
+  );
+  const [voiceStyle, setVoiceStyle] = useState<string>("confident_casual");
+  const [language, setLanguage] = useState<string>("en");
+  const [pace, setPace] = useState<string>("fast");
+  const [volume, setVolume] = useState<string>("normal");
+  const [voPrompt, setVoPrompt] = useState<string>("");
+  const [dialogueTiming, setDialogueTiming] = useState<
+    Array<{ scene_id: string; t: number; character: string; line: string }>
+  >([]);
 
   function validateText(t: string) {
     try {
@@ -46,11 +58,27 @@ export default function VideoAssemblePage() {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+    const audio: any = { mode: audioMode };
+    if (audioMode === "voiceover") {
+      audio.provider = "veo3";
+      audio.voice_style = voiceStyle;
+      audio.language = language;
+      audio.pace = pace;
+      audio.volume = volume;
+      audio.vo_prompt = voPrompt;
+    } else if (audioMode === "dialogue") {
+      audio.provider = "veo3";
+      audio.voice_style = voiceStyle;
+      audio.language = language;
+      audio.pace = pace;
+      audio.volume = volume;
+      audio.dialogue_timing = dialogueTiming;
+    }
     const candidate = {
       order: orderArr,
       transitions,
       motion,
-      audio: { mode: "none" as const },
+      audio,
     };
     const ok = validate(candidate);
     if (!ok) {
@@ -127,8 +155,7 @@ export default function VideoAssemblePage() {
         </header>
         <section className="rounded border bg-white p-4">
           <div className="mb-3 text-sm text-gray-700">
-            Build a minimal manifest, validate, and submit (audio.mode must be
-            "none").
+            Build a manifest, validate, and submit. Audio modes supported.
           </div>
           <div className="mb-3 grid grid-cols-3 gap-3 text-sm">
             <label>
@@ -157,6 +184,142 @@ export default function VideoAssemblePage() {
                 onChange={(e) => setMotion(e.target.value)}
               />
             </label>
+            <div className="col-span-3">
+              <div className="mt-4 rounded border p-3">
+                <div className="text-sm font-medium mb-2">Audio</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-sm">
+                    <div className="text-gray-700">Mode</div>
+                    <select
+                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                      value={audioMode}
+                      onChange={(e) => setAudioMode(e.target.value as any)}
+                    >
+                      <option value="none">none</option>
+                      <option value="voiceover">voiceover</option>
+                      <option value="dialogue">dialogue</option>
+                    </select>
+                  </label>
+                  <label className="text-sm">
+                    <div className="text-gray-700">Voice style</div>
+                    <input
+                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                      value={voiceStyle}
+                      onChange={(e) => setVoiceStyle(e.target.value)}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <div className="text-gray-700">Language</div>
+                    <input
+                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value)}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <div className="text-gray-700">Pace</div>
+                    <input
+                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                      value={pace}
+                      onChange={(e) => setPace(e.target.value)}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <div className="text-gray-700">Volume</div>
+                    <input
+                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                      value={volume}
+                      onChange={(e) => setVolume(e.target.value)}
+                    />
+                  </label>
+                </div>
+                {audioMode === "voiceover" && (
+                  <label className="mt-3 block text-sm">
+                    <div className="text-gray-700">Voiceover prompt</div>
+                    <textarea
+                      className="mt-1 h-24 w-full rounded border p-2 text-sm"
+                      value={voPrompt}
+                      onChange={(e) => setVoPrompt(e.target.value)}
+                      placeholder="Confident voiceover that says: ..."
+                    />
+                  </label>
+                )}
+                {audioMode === "dialogue" && (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-sm">Dialogue timing</div>
+                    {dialogueTiming.map((d, i) => (
+                      <div key={i} className="grid grid-cols-4 gap-2">
+                        <input
+                          className="rounded border px-2 py-1 text-sm"
+                          placeholder="scene_id"
+                          value={d.scene_id}
+                          onChange={(e) =>
+                            setDialogueTiming((prev) =>
+                              prev.map((v, idx) =>
+                                idx === i
+                                  ? { ...v, scene_id: e.target.value }
+                                  : v,
+                              ),
+                            )
+                          }
+                        />
+                        <input
+                          className="rounded border px-2 py-1 text-sm"
+                          placeholder="time (s)"
+                          value={d.t}
+                          onChange={(e) =>
+                            setDialogueTiming((prev) =>
+                              prev.map((v, idx) =>
+                                idx === i
+                                  ? { ...v, t: Number(e.target.value) || 0 }
+                                  : v,
+                              ),
+                            )
+                          }
+                        />
+                        <input
+                          className="rounded border px-2 py-1 text-sm"
+                          placeholder="character"
+                          value={d.character}
+                          onChange={(e) =>
+                            setDialogueTiming((prev) =>
+                              prev.map((v, idx) =>
+                                idx === i
+                                  ? { ...v, character: e.target.value }
+                                  : v,
+                              ),
+                            )
+                          }
+                        />
+                        <input
+                          className="rounded border px-2 py-1 text-sm"
+                          placeholder="line"
+                          value={d.line}
+                          onChange={(e) =>
+                            setDialogueTiming((prev) =>
+                              prev.map((v, idx) =>
+                                idx === i ? { ...v, line: e.target.value } : v,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                    ))}
+                    <button
+                      className="rounded border px-2 py-1 text-xs"
+                      onClick={() =>
+                        setDialogueTiming((prev) => [
+                          ...prev,
+                          { scene_id: "", t: 0, character: "", line: "" },
+                        ])
+                      }
+                    >
+                      Add line
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="col-span-3">
               <button
                 className="rounded border px-3 py-1.5 text-sm"
@@ -276,5 +439,14 @@ const exampleManifest = {
   order: ["hook1_s1", "hook1_s2"],
   transitions: "hard_cuts",
   motion: "subtle parallax",
-  audio: { mode: "none" },
+  audio: {
+    mode: "voiceover",
+    provider: "veo3",
+    voice_style: "confident_casual",
+    language: "en",
+    pace: "fast",
+    volume: "normal",
+    vo_prompt:
+      "Confident voiceover that says: Your CAC is fine. Your loop is broken. Fix your loop, win your market.",
+  },
 };

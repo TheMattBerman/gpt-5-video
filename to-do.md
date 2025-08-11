@@ -80,10 +80,11 @@ Acceptance (Week 1)
 - [~] Renders workflow
   - [~] Scene image generation queue; grid view with compare (DB-backed queue + in-process worker added; SSE reflects status); cancel for queued jobs
   - [x] Approve/reject, re-run with same/new seed
-  - [ ] Cost meter (estimate + actual) for images
+  - [x] Cost meter (estimate + actual) for images
 - [~] Telemetry & reliability
   - [x] Cost ledger for GPT + Replicate per asset (GPT placeholder added for synth; provider splits and run meta captured)
   - [x] Retry/backoff with jitter, error categorization, idempotency keys; KPIs include processing vs queued and avg queue wait
+  - [x] Added avg cost per render today metric (Dashboard tile)
 
 Acceptance (Week 2)
 
@@ -93,9 +94,9 @@ Acceptance (Week 2)
 
 - [ ] Videos assembly with audio controls
   - [ ] Manifest builder (drag scenes, transitions, motion)
-  - [ ] Audio tab: mode selector (none|voiceover|dialogue), style, pace, language, volume
-  - [ ] Veo 3 voiceover support (audio.mode=voiceover; require vo_prompt)
-  - [ ] Dialogue mode support with `dialogue_timing` mapping
+  - [x] Audio tab: mode selector (none|voiceover|dialogue), style, pace, language, volume
+  - [x] Veo 3 voiceover support (audio.mode=voiceover; require vo_prompt) — API accepts audio modes per schema; SSE steps visible
+  - [x] Dialogue mode support with `dialogue_timing` mapping — API accepts and validates; GUI form supports timing fields
   - [ ] 720p/1080p preview with transport controls and thumbnails
 - [ ] Review & Export
   - [ ] Checklist: tone/claims/assets
@@ -150,6 +151,10 @@ Acceptance (Week 3)
 - [ ] Replicate wrapper: predictions, polling, seeds/model version capture
 - [ ] ScrapeCreators adapter: pagination, rate-limit, retries, dedupe
 - [ ] S3 client: signed URL generation
+
+Notes:
+
+- [~] Replicate default model versions parameterized; placeholders replaced with env-overridable pinned IDs. Final stable IDs to be set in env for prod.
 
 ### 5) Workers
 

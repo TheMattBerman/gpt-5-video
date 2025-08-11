@@ -11,6 +11,8 @@ type Job = {
   seed?: number | null;
   duration_ms?: number | null;
   cost_usd?: number | null;
+  cost_estimate_usd?: number | null;
+  cost_actual_usd?: number | null;
   created_at?: string;
   artifacts?: Array<{ id: number; type?: string; url?: string; key?: string }>;
 };
@@ -48,11 +50,9 @@ export default function RendersPage() {
   };
 
   useEffect(() => {
-    let cancelled = false;
     fetchData();
     const timer = setInterval(fetchData, 4000);
     return () => {
-      cancelled = true;
       clearInterval(timer);
     };
   }, [apiBase, tick]);
@@ -182,11 +182,17 @@ export default function RendersPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {typeof (j as any).cost_usd === "number" && (
-                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
-                          ${Number((j as any).cost_usd).toFixed(2)}
+                      {typeof (j as any).cost_estimate_usd === "number" && (
+                        <span className="rounded bg-yellow-50 px-1.5 py-0.5 text-yellow-800">
+                          est ${Number((j as any).cost_estimate_usd).toFixed(2)}
                         </span>
                       )}
+                      {typeof (j as any).cost_actual_usd === "number" &&
+                        Number((j as any).cost_actual_usd) > 0 && (
+                          <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
+                            ${Number((j as any).cost_actual_usd).toFixed(2)}
+                          </span>
+                        )}
                     </div>
                   </div>
                   <div className="text-xs text-gray-600">
@@ -215,16 +221,20 @@ export default function RendersPage() {
                       <span className="font-mono">{String(j.duration_ms)}</span>
                     </div>
                   )}
-                  {typeof (j as any).cost_usd === "number" && (
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
-                        Cost (job)
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    {typeof (j as any).cost_estimate_usd === "number" && (
+                      <span className="rounded bg-yellow-50 px-1.5 py-0.5 text-yellow-800">
+                        Est ${Number((j as any).cost_estimate_usd).toFixed(2)}
                       </span>
-                      <span className="font-mono">
-                        {Number((j as any).cost_usd).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
+                    )}
+                    {typeof (j as any).cost_actual_usd === "number" &&
+                      Number((j as any).cost_actual_usd) > 0 && (
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
+                          Actual $
+                          {Number((j as any).cost_actual_usd).toFixed(2)}
+                        </span>
+                      )}
+                  </div>
                   {!!j.artifacts?.length && (
                     <div className="mt-2">
                       <div className="text-xs text-gray-600">Artifacts</div>

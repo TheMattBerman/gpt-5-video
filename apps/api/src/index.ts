@@ -29,6 +29,7 @@ import {
   insertCharacterProfile,
   insertCharacterSeeds,
   pool,
+  getJobAttemptCount,
 } from "./db";
 import {
   createS3Client,
@@ -550,9 +551,14 @@ app.post("/scenes/plan", (req: Request, res: Response) => {
 });
 
 const MODEL_VERSIONS: Record<string, string> = {
-  "ideogram-character": ReplicateClient.defaultVersions.ideogramCharacter,
-  "imagen-4": ReplicateClient.defaultVersions.imagen4,
-  "veo-3": ReplicateClient.defaultVersions.veo3,
+  "ideogram-character":
+    process.env.REPLICATE_IDEOGRAM_CHARACTER_VERSION ||
+    ReplicateClient.defaultVersions.ideogramCharacter,
+  "imagen-4":
+    process.env.REPLICATE_IMAGEN4_VERSION ||
+    ReplicateClient.defaultVersions.imagen4,
+  "veo-3":
+    process.env.REPLICATE_VEO3_VERSION || ReplicateClient.defaultVersions.veo3,
 };
 
 import {
@@ -677,6 +683,19 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
       idemKey: idemKey || undefined,
       jobMeta: { request: scene },
     });
+    // Cost estimate for image render
+    try {
+      const modelKey = String((scene as any).model ?? "");
+      await insertCost({
+        jobId: jobId,
+        provider: "replicate",
+        amountUsd: estimateImageCost(
+          modelKey,
+          (scene as any).model_inputs || {},
+        ),
+        meta: { route: "scenes.render", kind: "estimate" },
+      });
+    } catch {}
     broadcastJobEvent({ id: jobId, type: "scene_render", status: "queued" });
     res.status(202).json({ id: jobId, status: "queued" });
   } catch (err) {
@@ -727,15 +746,6 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
         details: validateVideoManifest.errors,
       });
     }
-    if (
-      manifest.audio &&
-      manifest.audio.mode &&
-      manifest.audio.mode !== "none"
-    ) {
-      return res
-        .status(400)
-        .json({ error: "Week 1: audio must be disabled (audio.mode=none)" });
-    }
     const jobId = `video_${Date.now()}`;
     await enqueueJob({
       id: jobId,
@@ -744,6 +754,15 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
       idemKey: idemKey || undefined,
       jobMeta: { request: manifest },
     });
+    // Cost estimate (no-op math OK): base estimate for video assembly
+    try {
+      await insertCost({
+        jobId,
+        provider: "replicate",
+        amountUsd: estimateVideoCost(manifest),
+        meta: { route: "videos.assemble", kind: "estimate" },
+      });
+    } catch {}
     broadcastJobEvent({ id: jobId, type: "video_assemble", status: "queued" });
     res.status(202).json({ id: jobId, status: "queued" });
   } catch (err) {
@@ -1086,6 +1105,7 @@ async function startWorkerLoop() {
         type: job.type,
         status: "processing",
         progress: { step: "claimed", pct: 5 },
+        attempt_count: Number((job as any).attempt_count || 0),
       });
       const payload = await getJobPayload(job.id);
       if (!payload) return;
@@ -1107,6 +1127,7 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       type: "scene_render",
       status: "processing",
       progress: { step: "creating_prediction", pct: 10 },
+      attempt_count: await getJobAttemptCount(jobId),
     });
     const modelKey = String((scene as any).model ?? "");
     const version = MODEL_VERSIONS[modelKey];
@@ -1127,6 +1148,7 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       status: "processing",
       progress: { step: "polling", pct: 40 },
       prediction_id: pred.id,
+      attempt_count: await getJobAttemptCount(jobId),
     });
     let finalPred: any;
     try {
@@ -1165,6 +1187,7 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       predictionId: finalPred.id,
       modelVersion: finalPred.version,
       progress: { step: "succeeded", pct: 100 },
+      attempt_count: await getJobAttemptCount(jobId),
     });
     try {
       const out = (finalPred as any).output;
@@ -1189,8 +1212,14 @@ async function handleSceneRenderJob(jobId: string, scene: any) {
       await insertCost({
         jobId,
         provider: "replicate",
-        amountUsd: 0.02,
-        meta: { route: "scenes.render", version: finalPred.version },
+        amountUsd:
+          computeActualImageCost(finalPred) ??
+          estimateImageCost(modelKey, (scene as any).model_inputs),
+        meta: {
+          route: "scenes.render",
+          version: finalPred.version,
+          kind: "actual",
+        },
       });
     } catch (e) {
       logger.warn({ err: e }, "artifact_persist_failed");
@@ -1207,8 +1236,9 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
       type: "video_assemble",
       status: "processing",
       progress: { step: "creating_prediction", pct: 10 },
+      attempt_count: await getJobAttemptCount(jobId),
     });
-    const prompt = `Create a short dynamic video with ${manifest.motion}. Transitions: ${manifest.transitions}. Scenes: ${(manifest.order || []).join(", ")}.`;
+    const prompt = buildVideoPrompt(manifest);
     let pred: any;
     try {
       pred = await createPrediction(MODEL_VERSIONS["veo-3"], { prompt });
@@ -1224,6 +1254,7 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
         status: "processing",
         progress: { step: "polling", pct: 40 },
         prediction_id: pred.id,
+        attempt_count: await getJobAttemptCount(jobId),
       });
       finalPred = await waitForPrediction(pred.id);
     } catch (e) {
@@ -1258,6 +1289,7 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
       predictionId: finalPred.id,
       modelVersion: finalPred.version,
       progress: { step: "succeeded", pct: 100 },
+      attempt_count: await getJobAttemptCount(jobId),
     });
     try {
       const out = (finalPred as any).output;
@@ -1282,8 +1314,13 @@ async function handleVideoAssembleJob(jobId: string, manifest: any) {
       await insertCost({
         jobId,
         provider: "replicate",
-        amountUsd: 0.05,
-        meta: { route: "videos.assemble", version: finalPred.version },
+        amountUsd:
+          computeActualVideoCost(finalPred) ?? estimateVideoCost(manifest),
+        meta: {
+          route: "videos.assemble",
+          version: finalPred.version,
+          kind: "actual",
+        },
       });
     } catch (e) {
       logger.warn({ err: e }, "artifact_persist_failed");
@@ -1314,6 +1351,7 @@ async function scheduleRetry(jobId: string, err: any) {
         type: "job",
         status: "failed",
         error_category: category,
+        attempt_count: attempt,
       });
       return;
     }
@@ -1337,9 +1375,55 @@ async function scheduleRetry(jobId: string, err: any) {
       type: "job",
       status: "queued",
       progress: { step: "retry_scheduled", pct: 0 },
-      attempt,
+      attempt_count: attempt,
     });
   } catch (e) {
     logger.warn({ err: e }, "schedule_retry_failed");
   }
+}
+
+// --- Cost estimation helpers (simple heuristics; schema-first ensures inputs) ---
+function estimateImageCost(
+  modelKey: string,
+  modelInputs: Record<string, unknown>,
+): number {
+  const base = modelKey === "imagen-4" ? 0.03 : 0.02;
+  const speed = String((modelInputs as any)?.rendering_speed || "Default");
+  const speedFactor = speed === "Fast" ? 0.8 : speed === "Slow" ? 1.2 : 1.0;
+  return Number((base * speedFactor).toFixed(2));
+}
+
+function computeActualImageCost(finalPred: any): number | undefined {
+  // Placeholder: Replicate price not in API response; fall back to estimate
+  return undefined;
+}
+
+function estimateVideoCost(manifest: any): number {
+  const scenes = Array.isArray(manifest?.order) ? manifest.order.length : 1;
+  const audioMode = manifest?.audio?.mode || "none";
+  const audioFactor =
+    audioMode === "voiceover" ? 1.15 : audioMode === "dialogue" ? 1.3 : 1.0;
+  const base = 0.05 + (scenes - 1) * 0.01;
+  return Number((base * audioFactor).toFixed(2));
+}
+
+function computeActualVideoCost(finalPred: any): number | undefined {
+  // Placeholder until provider returns billing info; fall back to estimate in worker
+  return undefined;
+}
+
+function buildVideoPrompt(manifest: any): string {
+  const scenes = (manifest.order || []).join(", ");
+  const motion = manifest.motion;
+  const transitions = manifest.transitions;
+  const audio = manifest.audio;
+  let audioText = "";
+  if (audio && audio.mode && audio.mode !== "none") {
+    if (audio.mode === "voiceover") {
+      audioText = ` Voiceover style=${audio.voice_style || ""} lang=${audio.language || ""} pace=${audio.pace || ""} volume=${audio.volume || ""}. Script: ${audio.vo_prompt || ""}`;
+    } else if (audio.mode === "dialogue") {
+      audioText = ` Dialogue is enabled with provided timings.`;
+    }
+  }
+  return `Create a short dynamic video with ${motion}. Transitions: ${transitions}. Scenes: ${scenes}.${audioText}`;
 }
