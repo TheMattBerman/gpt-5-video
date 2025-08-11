@@ -78,7 +78,7 @@ Acceptance (Week 1)
   - [x] Scenes page: Monaco JSON editor with schema autocomplete and diff
   - [x] Audio panel per scene (dialogue or VO fields present)
 - [~] Renders workflow
-  - [~] Scene image generation queue; grid view with compare (DB-backed queue + in-process worker added; SSE reflects status); cancel for queued jobs
+  - [~] Scene image generation queue; grid view with compare (DB-backed queue + in-process worker added; SSE reflects status); cancel for queued jobs; batch queue action to queue 15 renders
   - [x] Approve/reject, re-run with same/new seed
   - [x] Cost meter (estimate + actual) for images
 - [~] Telemetry & reliability
@@ -97,10 +97,11 @@ Acceptance (Week 2)
   - [x] Audio tab: mode selector (none|voiceover|dialogue), style, pace, language, volume
   - [x] Veo 3 voiceover support (audio.mode=voiceover; require vo_prompt) — API accepts audio modes per schema; SSE steps visible
   - [x] Dialogue mode support with `dialogue_timing` mapping — API accepts and validates; GUI form supports timing fields
+  - [x] Status and cost badges on Video Assemble via job detail polling (estimate + actual)
   - [ ] 720p/1080p preview with transport controls and thumbnails
 - [ ] Review & Export
-  - [ ] Checklist: tone/claims/assets
-  - [ ] Export presets: 9:16, 1:1, 16:9; S3 handoff or download
+  - [~] Checklist: tone/claims/assets (stub page added)
+  - [~] Export presets: 9:16, 1:1, 16:9; S3 handoff or download (stubs + S3 preview wired)
   - [ ] CSV report (costs + basic performance placeholders)
 - [ ] Security & access
   - [ ] JWT auth with roles; signed URLs for uploads/downloads

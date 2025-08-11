@@ -9,6 +9,10 @@ LOG_LEVEL=info
 
 # Replicate (required for /scenes/render and /videos/assemble)
 REPLICATE_API_TOKEN=
+# Model versions (override defaults)
+REPLICATE_IDEOGRAM_CHARACTER_VERSION=
+REPLICATE_IMAGEN4_VERSION=
+REPLICATE_VEO3_VERSION=
 
 # ScrapeCreators (optional, Week 2+)
 SCRAPECREATORS_API_KEY=

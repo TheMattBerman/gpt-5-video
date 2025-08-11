@@ -81,6 +81,33 @@ export default function ScenesRenderPage() {
     }
   }
 
+  async function queueBatch(count = 15) {
+    const scene: any = validateText(text);
+    if (!scene) return show({ title: "Invalid scene spec", variant: "error" });
+    let okCount = 0;
+    for (let i = 0; i < count; i++) {
+      const seed = Math.floor(Math.random() * 1_000_000_000);
+      const payload = {
+        ...scene,
+        model_inputs: { ...(scene.model_inputs || {}), seed },
+      };
+      try {
+        const res = await fetch(`${apiBase}/scenes/render`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scene: payload }),
+        });
+        if (res.ok) okCount++;
+      } catch {}
+      // small gap to avoid thundering herd
+      await new Promise((r) => setTimeout(r, 75));
+    }
+    show({
+      title: `Batch queued (${okCount}/${count})`,
+      variant: okCount === count ? "success" : okCount > 0 ? "info" : "error",
+    });
+  }
+
   const contentType =
     typeof resp?.data?.output === "string" &&
     resp?.data?.output?.match(/\.mp4|\.webm|\.gif|\.png|\.jpg/i)
@@ -147,6 +174,13 @@ export default function ScenesRenderPage() {
                   className="rounded border px-3 py-1.5 text-sm"
                 >
                   Insert Ideogram preset
+                </button>
+                <button
+                  onClick={() => void queueBatch(15)}
+                  disabled={errors.length > 0}
+                  className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  Queue 15 renders
                 </button>
               </div>
               {resp && (

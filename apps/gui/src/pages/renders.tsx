@@ -198,6 +198,11 @@ export default function RendersPage() {
                   <div className="text-xs text-gray-600">
                     id: <span className="font-mono">{j.id}</span>
                   </div>
+                  {typeof (j as any).attempt_count === "number" && (
+                    <div className="text-xs text-gray-600">
+                      attempts: {String((j as any).attempt_count)}
+                    </div>
+                  )}
                   {j.prediction_id && (
                     <div className="text-xs text-gray-600">
                       prediction_id:{" "}

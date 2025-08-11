@@ -185,6 +185,9 @@ export default function Home() {
               <Link href="/renders" className="text-blue-600 underline">
                 Renders
               </Link>
+              <Link href="/review-export" className="text-blue-600 underline">
+                Review & Export
+              </Link>
               <Link href="/settings" className="text-blue-600 underline">
                 Settings
               </Link>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import videoManifestSchema from "../../../../packages/schemas/schemas/video_manifest.schema.json";
@@ -17,6 +17,9 @@ export default function VideoAssemblePage() {
   );
   const [errors, setErrors] = useState<string[]>([]);
   const [resp, setResp] = useState<any>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobDetail, setJobDetail] = useState<any | null>(null);
+  const [tick, setTick] = useState<number>(0);
   const validate = useMemo(() => ajv.compile(videoManifestSchema as any), []);
   const { show } = useToast();
   const [order, setOrder] = useState<string>("hook1_s1, hook1_s2");
@@ -112,6 +115,7 @@ export default function VideoAssemblePage() {
     const data = await res.json();
     setResp({ ok: res.ok, data });
     if (res.ok) {
+      if (typeof data?.id === "string") setJobId(data.id);
       updateJob(provisionalId, {
         status: "succeeded",
         completedAt: Date.now(),
@@ -135,6 +139,31 @@ export default function VideoAssemblePage() {
       });
     }
   }
+
+  // Subscribe to SSE to refresh job detail when events occur
+  useEffect(() => {
+    if (!jobId) return;
+    const es = new EventSource(`${apiBase}/jobs/stream`);
+    const onJob = () => setTick((t) => t + 1);
+    es.addEventListener("job", onJob as any);
+    return () => {
+      es.removeEventListener("job", onJob as any);
+      es.close();
+    };
+  }, [apiBase, jobId]);
+
+  // Fetch job detail on tick or when jobId set
+  useEffect(() => {
+    if (!jobId) return;
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/jobs/${jobId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setJobDetail(data);
+      } catch {}
+    })();
+  }, [apiBase, jobId, tick]);
 
   const outputs: string[] = Array.isArray(resp?.data?.output)
     ? resp.data.output
@@ -362,35 +391,52 @@ export default function VideoAssemblePage() {
                   Assemble
                 </button>
               </div>
-              {resp && (
+              {(resp || jobDetail) && (
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="text-gray-700">
                     prediction_id:{" "}
                     <span className="font-mono">
-                      {resp.data?.prediction_id}
+                      {jobDetail?.prediction_id || resp?.data?.prediction_id}
                     </span>
                   </div>
                   <div className="text-gray-700">
                     model_version:{" "}
                     <span className="font-mono">
-                      {resp.data?.model_version}
+                      {jobDetail?.model_version || resp?.data?.model_version}
                     </span>
                   </div>
                   <div className="text-gray-700">
                     duration_ms:{" "}
                     <span className="font-mono">
-                      {String(resp.data?.duration_ms ?? "")}
+                      {String(
+                        jobDetail?.duration_ms ?? resp?.data?.duration_ms ?? "",
+                      )}
                     </span>
                   </div>
                   <div className="text-gray-700">
                     status:{" "}
-                    <span className="font-mono">{resp.data?.status}</span>
+                    <span className="font-mono">
+                      {jobDetail?.status || resp.data?.status}
+                    </span>
                   </div>
                   <div className="text-gray-700">
                     run_id:{" "}
                     <span className="font-mono">
-                      {String(resp.data?.run_id ?? "")}
+                      {String(jobDetail?.run_id ?? resp.data?.run_id ?? "")}
                     </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {typeof jobDetail?.cost_estimate_usd === "number" && (
+                      <span className="rounded bg-yellow-50 px-1.5 py-0.5 text-yellow-800">
+                        Est ${Number(jobDetail.cost_estimate_usd).toFixed(2)}
+                      </span>
+                    )}
+                    {typeof jobDetail?.cost_actual_usd === "number" &&
+                      Number(jobDetail.cost_actual_usd) > 0 && (
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
+                          Actual ${Number(jobDetail.cost_actual_usd).toFixed(2)}
+                        </span>
+                      )}
                   </div>
                 </div>
               )}
