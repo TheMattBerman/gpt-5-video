@@ -146,15 +146,25 @@ export async function insertCost(row: {
 
 export async function getRecentJobs(limit = 50) {
   const { rows } = await pool.query(
-    `select j.*, coalesce(json_agg(a.*) filter (where a.id is not null), '[]') as artifacts
+    `select j.*,
+            coalesce(json_agg(a.*) filter (where a.id is not null), '[]') as artifacts,
+            coalesce(sum(c.amount_usd) filter (where c.id is not null), 0) as cost_usd
      from jobs j
      left join artifacts a on a.job_id = j.id
+     left join cost_ledger c on c.job_id = j.id
      group by j.id
      order by j.created_at desc
      limit $1`,
     [limit],
   );
   return rows;
+}
+
+export async function countQueuedJobs() {
+  const { rows } = await pool.query(
+    `select count(*)::int as c from jobs where status = 'queued'`,
+  );
+  return rows[0]?.c ?? 0;
 }
 
 export async function getKpisToday() {

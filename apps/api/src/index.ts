@@ -13,6 +13,7 @@ import {
   getKpisToday,
   insertArtifact,
   insertCost,
+  countQueuedJobs,
 } from "./db";
 import {
   createS3Client,
@@ -246,6 +247,10 @@ function extractSeed(pred: any): number | undefined {
 
 app.post("/scenes/render", async (req: Request, res: Response) => {
   try {
+    // Simple concurrency guardrail
+    const queued = await countQueuedJobs();
+    if (queued >= guardrails.max_concurrency)
+      return res.status(429).json({ error: "concurrency_limit" });
     const scene = (req.body?.scene ?? req.body) as any;
     if (!validateSceneSpec(scene)) {
       return res.status(400).json({
@@ -379,6 +384,9 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
 
 app.post("/videos/assemble", async (req: Request, res: Response) => {
   try {
+    const queued = await countQueuedJobs();
+    if (queued >= guardrails.max_concurrency)
+      return res.status(429).json({ error: "concurrency_limit" });
     const manifest = (req.body?.manifest ?? req.body) as any;
     if (!validateVideoManifest(manifest as any)) {
       return res.status(400).json({
