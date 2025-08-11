@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
 import { ajv } from "@gpt5video/shared";
@@ -229,6 +230,10 @@ export default function CharacterPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
+        <PageHeader
+          title="Character"
+          description="Upload references and set style/mask rules. Run a stability test and lock a winning seed."
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Character</h1>
           <nav className="flex gap-4 text-sm">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
 import { useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -162,6 +163,10 @@ export default function ScenesRenderPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
+        <PageHeader
+          title="Scenes Render"
+          description="Paste a valid scene spec and queue renders. Watch live status and preview outputs."
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Scenes Render</h1>
           <nav className="flex gap-4 text-sm">

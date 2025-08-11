@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/Card";
+import Badge from "../components/ui/Badge";
 import { computeKpis } from "../lib/jobs";
 import { useToast } from "../components/Toast";
 
@@ -156,52 +164,27 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-dvh bg-gray-50">
-      <div className="mx-auto max-w-4xl p-6 space-y-8">
-        <header className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">
-            All-Replicate Content Engine
-          </h1>
-          <div className="flex items-center gap-4 text-sm">
-            <nav className="flex items-center gap-3">
-              <Link href="/brand" className="text-blue-600 underline">
-                Brand
-              </Link>
-              <Link href="/hooks" className="text-blue-600 underline">
-                Hooks
-              </Link>
-              <Link href="/character" className="text-blue-600 underline">
-                Character
-              </Link>
-              <Link href="/scenes-plan" className="text-blue-600 underline">
-                Scenes Plan
-              </Link>
-              <Link href="/scenes-render" className="text-blue-600 underline">
-                Scenes Render
-              </Link>
-              <Link href="/video-assemble" className="text-blue-600 underline">
-                Video Assemble
-              </Link>
-              <Link href="/renders" className="text-blue-600 underline">
-                Renders
-              </Link>
-              <Link href="/review-export" className="text-blue-600 underline">
-                Review & Export
-              </Link>
-              <Link href="/settings" className="text-blue-600 underline">
-                Settings
-              </Link>
-            </nav>
-            <div className="text-gray-600">SSE status: {ping}</div>
-          </div>
-        </header>
+    <div className="space-y-6">
+      <PageHeader
+        title="All-Replicate Content Engine"
+        description="Operate Hooks → Scenes → Video with status-aware metrics and helpful defaults."
+        actions={
+          <Link href="/scenes-render" className="btn-primary">
+            Queue a render
+          </Link>
+        }
+      />
 
-        <section className="grid grid-cols-2 gap-4">
-          <div className="rounded-lg border bg-white p-4">
-            <div className="text-xs font-medium text-gray-500 mb-2">
-              Dashboard
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Operational KPIs</CardTitle>
+            {!serverKpis && (
+              <Badge variant="warning">server KPIs unavailable</Badge>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
               <Tile label="Uploads (session)" value={String(recent.length)} />
               <Tile
                 label="Last ping (ms ago)"
@@ -273,84 +256,63 @@ export default function Home() {
               </div>
               <GuardrailsTile apiBase={apiBase} />
             </div>
-          </div>
-          <div className="rounded-lg border bg-white p-4">
-            <div className="text-xs font-medium text-gray-500 mb-2">
-              Upload to R2 (dev)
-            </div>
-            <div className="space-y-3">
-              <div>
-                <input
-                  type="file"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="block w-full text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm">
-                  Prefix
-                  <input
-                    value={keyPrefix}
-                    onChange={(e) => setKeyPrefix(e.target.value)}
-                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                    placeholder="dev/"
-                  />
-                </label>
-                <label className="text-sm">
-                  Content-Type
-                  <input
-                    value={contentType}
-                    onChange={(e) => setContentType(e.target.value)}
-                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                    placeholder={file?.type || "application/octet-stream"}
-                  />
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleUpload}
-                  className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
-                  disabled={!file}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Getting Started</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="list-decimal pl-5 text-sm space-y-1">
+              <li>
+                <Link className="text-accent-700 underline" href="/brand">
+                  Brand
+                </Link>
+              </li>
+              <li>
+                <Link className="text-accent-700 underline" href="/hooks">
+                  Hooks
+                </Link>
+              </li>
+              <li>
+                <Link className="text-accent-700 underline" href="/scenes-plan">
+                  Scenes
+                </Link>
+              </li>
+              <li>
+                <Link
+                  className="text-accent-700 underline"
+                  href="/scenes-render"
                 >
-                  Upload
-                </button>
-                <div className="text-sm text-gray-600">{status}</div>
-              </div>
-              {previewUrl && (
-                <div className="mt-2 space-y-2">
-                  <div className="text-xs text-gray-500">Preview</div>
-                  {contentType.startsWith("image/") ? (
-                    <img
-                      src={previewUrl}
-                      alt="preview"
-                      className="max-h-60 rounded border"
-                    />
-                  ) : contentType.startsWith("video/") ? (
-                    <video
-                      src={previewUrl}
-                      controls
-                      className="max-h-60 rounded border"
-                    />
-                  ) : (
-                    <a
-                      href={previewUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 underline text-sm"
-                    >
-                      {previewUrl}
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
+                  Renders
+                </Link>
+              </li>
+              <li>
+                <Link
+                  className="text-accent-700 underline"
+                  href="/video-assemble"
+                >
+                  Video
+                </Link>
+              </li>
+              <li>
+                <Link
+                  className="text-accent-700 underline"
+                  href="/review-export"
+                >
+                  Review
+                </Link>
+              </li>
+            </ol>
+          </CardContent>
+        </Card>
+      </div>
 
-        <section className="rounded-lg border bg-white p-4">
-          <div className="text-xs font-medium text-gray-500 mb-2">
-            Recent assets (session)
-          </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent assets (session)</CardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="overflow-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -375,7 +337,7 @@ export default function Home() {
                           href={a.previewUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-blue-600 underline"
+                          className="text-accent-700 underline"
                         >
                           open
                         </a>
@@ -395,9 +357,9 @@ export default function Home() {
               </tbody>
             </table>
           </div>
-        </section>
-      </div>
-    </main>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

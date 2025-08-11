@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
 import { useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
 import { fetchWithAuth } from "../lib/http";
@@ -143,6 +144,10 @@ export default function ScenesEditorPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-6xl p-6 space-y-6">
+        <PageHeader
+          title="Scenes"
+          description="Author scene specs with JSON + schema checks. Merge audio fields when needed."
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Scenes</h1>
           <nav className="flex gap-4 text-sm">

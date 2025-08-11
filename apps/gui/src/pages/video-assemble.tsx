@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
 import { useEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -339,6 +340,10 @@ export default function VideoAssemblePage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
+        <PageHeader
+          title="Video Assemble"
+          description="Build a manifest via form or JSON. Audio modes: none, voiceover, dialogue."
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Video Assemble</h1>
           <nav className="flex gap-4 text-sm">

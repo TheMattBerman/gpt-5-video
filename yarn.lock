@@ -657,6 +657,7 @@
   dependencies:
     "@gpt5video/replicate-client" "file:../../packages/clients/replicate"
     "@gpt5video/schemas" "file:../../packages/schemas"
+    "@gpt5video/scrapecreators" "file:../../packages/clients/scrapecreators"
     "@gpt5video/shared" "file:../../packages/shared"
     "@gpt5video/storage" "file:../../packages/clients/storage"
     cors "^2.8.5"
@@ -855,6 +856,13 @@
   dependencies:
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
+
+"@playwright/test@^1.41.2", "@playwright/test@^1.46.0":
+  version "1.54.2"
+  resolved "https://registry.npmjs.org/@playwright/test/-/test-1.54.2.tgz"
+  integrity sha512-A+znathYxPf+72riFd1r1ovOLqsIIB0jKIoPjyK2kqEIe30/6jF6BC7QNluHuwUmsD2tv1XZVugN8GqfTMOxsA==
+  dependencies:
+    playwright "1.54.2"
 
 "@rtsao/scc@^1.1.0":
   version "1.1.0"
@@ -2821,6 +2829,11 @@ fsevents@~2.3.2:
   resolved "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz"
   integrity sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==
 
+fsevents@2.3.2:
+  version "2.3.2"
+  resolved "https://registry.npmjs.org/fsevents/-/fsevents-2.3.2.tgz"
+  integrity sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==
+
 function-bind@^1.1.2:
   version "1.1.2"
   resolved "https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz"
@@ -4001,6 +4014,20 @@ pino@^9.0.0, pino@^9.3.2:
     safe-stable-stringify "^2.3.1"
     sonic-boom "^4.0.1"
     thread-stream "^3.0.0"
+
+playwright-core@1.54.2:
+  version "1.54.2"
+  resolved "https://registry.npmjs.org/playwright-core/-/playwright-core-1.54.2.tgz"
+  integrity sha512-n5r4HFbMmWsB4twG7tJLDN9gmBUeSPcsBZiWSE4DnYz9mJMAFqr2ID7+eGC9kpEnxExJ1epttwR59LEWCk8mtA==
+
+playwright@1.54.2:
+  version "1.54.2"
+  resolved "https://registry.npmjs.org/playwright/-/playwright-1.54.2.tgz"
+  integrity sha512-Hu/BMoA1NAdRUuulyvQC0pEqZ4vQbGfn8f7wPXcnqQmM+zct9UliKxsIkLNmz/ku7LElUNqmaiv1TG/aL5ACsw==
+  dependencies:
+    playwright-core "1.54.2"
+  optionalDependencies:
+    fsevents "2.3.2"
 
 possible-typed-array-names@^1.0.0:
   version "1.1.0"

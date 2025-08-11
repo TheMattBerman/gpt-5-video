@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
 import { fetchWithAuth } from "../lib/http";
@@ -151,6 +152,10 @@ export default function RendersPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
+        <PageHeader
+          title="Renders"
+          description="Preview outputs, compare, approve or re-run. Status and costs shown per job."
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Renders</h1>
           <nav className="flex gap-4 text-sm">

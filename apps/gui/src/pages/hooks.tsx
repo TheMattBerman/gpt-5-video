@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
 import { useEffect, useMemo, useState } from "react";
 import { addJob, updateJob } from "../lib/jobs";
 import { fetchWithAuth } from "../lib/http";
@@ -208,6 +209,10 @@ export default function HooksPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-4xl p-6 space-y-6">
+        <PageHeader
+          title="Hooks"
+          description="Set up sources, mine and synthesize hooks. Approve or edit before planning scenes."
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Hooks</h1>
           <nav className="flex gap-4 text-sm">

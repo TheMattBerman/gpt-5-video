@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
 
@@ -72,6 +73,10 @@ export default function SettingsPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-3xl p-6 space-y-6">
+        <PageHeader
+          title="Settings"
+          description="Configure guardrails and auth token. Changes apply immediately across the app."
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Settings</h1>
           <nav className="flex gap-4 text-sm">

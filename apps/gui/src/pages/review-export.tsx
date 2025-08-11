@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
 import { useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
 import { fetchWithAuth } from "../lib/http";
@@ -44,6 +45,10 @@ export default function ReviewExportPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-4xl p-6 space-y-6">
+        <PageHeader
+          title="Review & Export"
+          description="Run the checklist, pick an aspect preset, copy or open S3 keys, and download the CSV report."
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Review & Export</h1>
           <nav className="flex gap-4 text-sm">

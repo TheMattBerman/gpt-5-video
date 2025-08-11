@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/Toast";
 import { useMemo, useState } from "react";
 import { ajv } from "@gpt5video/shared";
@@ -71,6 +72,10 @@ export default function ScenesPlanPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
+        <PageHeader
+          title="Scenes Plan"
+          description="Draft 1–3 scene specs or an array. Validate against schema and submit."
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Scenes Plan</h1>
           <nav className="flex gap-4 text-sm">
