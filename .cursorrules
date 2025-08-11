@@ -1,0 +1,33 @@
+Project rules for Cursor assistants and commands:
+
+1. Always read `prd.md` and `to-do.md` before proposing changes. Align work to the PRD and update `to-do.md` checkboxes in the same PR.
+
+2. Keep `to-do.md` as the single source of truth for the build plan.
+
+   - When you complete or materially progress a task, check it off or mark `[~]`, and add a short note if helpful.
+   - When adding new scope, place it under the correct milestone or create a clearly labeled Stretch/Backlog section.
+
+3. Schema-first development:
+
+   - Treat the JSON Schemas in `packages/schemas` as the contract. Generate TS types from schemas and validate all API requests/responses against them.
+
+4. Traceability and cost visibility:
+
+   - Persist and surface: seeds, model version IDs, run IDs, durations, and costs for each asset.
+
+5. Guardrails:
+
+   - Enforce audio mode rules from the PRD: `none`, `voiceover` (require `vo_prompt`), `dialogue` (require `dialogue_timing`).
+   - Respect concurrency and cost caps configured in Settings.
+
+6. Communication style in PRs:
+
+   - Link the exact checklist items changed in `to-do.md` and include a one-line impact summary.
+
+7. Defaults:
+
+   - Services in Node/TypeScript unless otherwise specified; Next.js + Tailwind for GUI.
+   - Local dev uses Postgres + MinIO via docker-compose.
+
+8. Nonfunctional:
+   - Keep builds green (typecheck, lint, test) before merging.

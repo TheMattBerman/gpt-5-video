@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.gpt5video.local/brand_profile.schema.json",
+  "title": "BrandProfile",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "brand_id": { "type": "string", "minLength": 1 },
+    "voice": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "principles": { "type": "array", "items": { "type": "string" } },
+        "banned_phrases": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["principles", "banned_phrases"]
+    },
+    "icp_segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "pains": { "type": "array", "items": { "type": "string" } },
+          "gains": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["name", "pains", "gains"]
+      }
+    },
+    "proof": { "type": "array", "items": { "type": "string" } },
+    "legal_constraints": { "type": "array", "items": { "type": "string" } },
+    "objectives": { "type": "array", "items": { "type": "string" } },
+    "done_criteria": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": [
+    "brand_id",
+    "voice",
+    "icp_segments",
+    "proof",
+    "legal_constraints",
+    "objectives",
+    "done_criteria"
+  ]
+}
+

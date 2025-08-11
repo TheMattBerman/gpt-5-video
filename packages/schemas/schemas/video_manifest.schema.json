@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.gpt5video.local/video_manifest.schema.json",
+  "title": "VideoManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "order": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "transitions": { "type": "string" },
+    "motion": { "type": "string" },
+    "overlays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "time": { "type": "number", "minimum": 0 },
+          "type": { "type": "string" },
+          "text": { "type": "string" }
+        },
+        "required": ["time", "type"]
+      }
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["none", "voiceover", "dialogue"] },
+        "provider": { "type": "string", "enum": ["veo3"] },
+        "voice_style": { "type": "string" },
+        "language": { "type": "string" },
+        "pace": { "type": "string" },
+        "volume": { "type": "string" },
+        "vo_prompt": { "type": "string" },
+        "dialogue_timing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scene_id": { "type": "string" },
+              "t": { "type": "number", "minimum": 0 },
+              "character": { "type": "string" },
+              "line": { "type": "string" }
+            },
+            "required": ["scene_id", "t", "character", "line"]
+          }
+        }
+      },
+      "required": ["mode"]
+    }
+  },
+  "required": ["order", "transitions", "motion"],
+  "allOf": [
+    {
+      "if": { "properties": { "audio": { "properties": { "mode": { "const": "voiceover" } } } } },
+      "then": { "properties": { "audio": { "required": ["vo_prompt"] } } }
+    },
+    {
+      "if": { "properties": { "audio": { "properties": { "mode": { "const": "dialogue" } } } } },
+      "then": { "properties": { "audio": { "required": ["dialogue_timing"] } } }
+    }
+  ]
+}
+

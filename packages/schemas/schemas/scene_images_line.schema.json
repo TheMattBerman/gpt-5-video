@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.gpt5video.local/scene_images_line.schema.json",
+  "title": "SceneImageLine",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "scene_id": { "type": "string" },
+    "image_url": { "type": "string", "format": "uri" },
+    "seed": { "type": "integer" },
+    "model_version": { "type": "string" },
+    "params": { "type": "object" }
+  },
+  "required": ["scene_id", "image_url", "seed", "model_version", "params"]
+}
+

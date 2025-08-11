@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.gpt5video.local/hook_corpus_line.schema.json",
+  "title": "HookCorpusLine",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "platform": { "type": "string" },
+    "author": { "type": "string" },
+    "url": { "type": "string", "format": "uri" },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "views": { "type": "integer", "minimum": 0 },
+        "likes": { "type": "integer", "minimum": 0 },
+        "comments": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["views", "likes", "comments"]
+    },
+    "caption_or_transcript": { "type": "string" },
+    "detected_format": { "type": "string" },
+    "scraper": { "type": "string" },
+    "scrape_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "request_id": { "type": "string" },
+        "latency_ms": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["request_id", "latency_ms"]
+    }
+  },
+  "required": [
+    "platform",
+    "author",
+    "url",
+    "metrics",
+    "caption_or_transcript",
+    "detected_format",
+    "scraper",
+    "scrape_meta"
+  ]
+}
+

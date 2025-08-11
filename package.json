@@ -1,0 +1,27 @@
+{
+  "name": "gpt-5-video",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/*/*",
+    "packages/clients/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "dev": "npm run -ws dev",
+    "lint": "npm run -ws lint",
+    "typecheck": "npm run -ws typecheck",
+    "format": "npm run -ws format"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4"
+  }
+}
+

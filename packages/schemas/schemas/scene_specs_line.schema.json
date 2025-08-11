@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.gpt5video.local/scene_specs_line.schema.json",
+  "title": "SceneSpecLine",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "scene_id": { "type": "string" },
+    "duration_s": { "type": "number", "minimum": 0.1, "maximum": 30 },
+    "composition": { "type": "string" },
+    "props": { "type": "array", "items": { "type": "string" } },
+    "overlays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": { "type": "string" },
+          "text": { "type": "string" },
+          "time": { "type": "number", "minimum": 0 }
+        },
+        "required": ["type"]
+      }
+    },
+    "model": { "type": "string", "enum": ["ideogram-character", "imagen-4"] },
+    "model_inputs": { "type": "object" },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dialogue": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "character": { "type": "string" },
+              "line": { "type": "string" }
+            },
+            "required": ["character", "line"]
+          }
+        },
+        "vo_prompt": { "type": "string" }
+      }
+    }
+  },
+  "required": [
+    "scene_id",
+    "duration_s",
+    "composition",
+    "props",
+    "overlays",
+    "model",
+    "model_inputs"
+  ]
+}
+

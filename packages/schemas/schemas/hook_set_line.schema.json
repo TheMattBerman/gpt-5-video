@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.gpt5video.local/hook_set_line.schema.json",
+  "title": "HookSetLine",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "hook_text": { "type": "string" },
+    "angle": { "type": "string" },
+    "icp": { "type": "string" },
+    "risk_flags": { "type": "array", "items": { "type": "string" } },
+    "inspiration_url": { "type": "string", "format": "uri" }
+  },
+  "required": [
+    "hook_text",
+    "angle",
+    "icp",
+    "risk_flags",
+    "inspiration_url"
+  ]
+}
+
