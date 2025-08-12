@@ -223,3 +223,19 @@ npm run -ws typecheck && npm run -ws build
 - Align changes with `prd.md`
 - Keep `to-do.md` updated as the single source of truth for plan and status
 - Schema-first development: update `packages/schemas`, generate types, validate at runtime in API
+
+### Contributing
+
+See `CONTRIBUTING.md` for how to run the project, workflow, and PR expectations.
+
+### Code of Conduct
+
+All contributors are expected to follow the `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1).
+
+### Security
+
+Please report vulnerabilities privately. See `SECURITY.md`.
+
+### License
+
+MIT — see `LICENSE`.

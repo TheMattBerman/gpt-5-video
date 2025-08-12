@@ -1,0 +1,7 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security issue
+    url: https://github.com/ENTER_ORG_HERE/gpt-5-video/security/advisories
+    about: Please report security vulnerabilities privately. See SECURITY.md.
+
+

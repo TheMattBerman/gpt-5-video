@@ -162,6 +162,14 @@ Acceptance (Week 3)
 - [ ] GitHub Actions: typecheck, lint, build, basic tests
 - [ ] Conventional commits + semantic release (optional)
 
+OSS readiness
+
+- [x] Add `LICENSE` (MIT)
+- [x] Add `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`
+- [x] Add GitHub issue templates and PR template
+- [x] Update `README.md` with Contributing, CoC, Security, License sections
+- [x] Set `license: MIT` across packages
+
 ### 2) Schemas and Types (`packages/schemas`, `packages/shared`)
 
 - [ ] Author JSON Schemas per PRD (section 7, 17)
