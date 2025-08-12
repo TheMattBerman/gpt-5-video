@@ -19,7 +19,7 @@ export default function PageHeader({
             {title}
           </h1>
           {description && (
-            <p className="mt-1 text-sm text-gray-600 max-w-prose">
+            <p className="mt-1 text-sm text-gray-700 max-w-prose">
               {description}
             </p>
           )}

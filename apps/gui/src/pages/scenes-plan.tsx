@@ -283,326 +283,280 @@ export default function ScenesPlanPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-gray-50">
-      <div className="mx-auto max-w-6xl p-6 space-y-6">
-        <PageHeader
-          title="Scenes Plan"
-          description="Compose scenes with JSON or a friendly form. Live schema validation and helpful guidance."
-          actions={
-            <div className="flex items-center gap-2 text-xs">
-              {isValid ? (
-                <Badge variant="success">Valid</Badge>
-              ) : (
-                <Badge variant="error">Invalid</Badge>
-              )}
-            </div>
-          }
-        />
-        <nav className="flex gap-4 text-sm">
-          <Link
-            className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
-            href="/"
-          >
-            Dashboard
-          </Link>
-        </nav>
-        <section className="rounded border bg-white p-4">
-          <Tabs
-            sticky
-            tabs={[
-              {
-                id: "json",
-                label: "JSON",
-                content: (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div>
-                      {!showDiff ? (
-                        <MonacoEditor
-                          height="520px"
-                          defaultLanguage="json"
-                          value={jsonText}
-                          onChange={(v) => onJsonChange(v || "")}
-                          onMount={(editor: any, monaco: any) => {
-                            editorRef.current = editor;
-                            try {
-                              monaco?.languages?.json?.jsonDefaults?.setDiagnosticsOptions?.(
-                                {
-                                  validate: true,
-                                  enableSchemaRequest: false,
-                                  schemas: [
-                                    {
-                                      uri: "inmemory://model/scene_specs_line.schema.json",
-                                      fileMatch: ["*"],
-                                      schema: sceneSpecsLineSchema,
-                                    },
-                                  ],
-                                },
-                              );
-                            } catch {}
-                          }}
-                          options={{
-                            minimap: { enabled: false },
-                            fontSize: 12,
-                          }}
-                        />
-                      ) : (
-                        <MonacoDiffEditor
-                          height="520px"
-                          original={originalText}
-                          modified={jsonText}
-                          originalLanguage="json"
-                          modifiedLanguage="json"
-                          theme="vs-dark"
-                        />
-                      )}
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <Button
-                          onClick={submit}
-                          disabled={!isValid || submitBusy}
-                          aria-label="Submit plan"
-                        >
-                          Submit Plan
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={formatJson}
-                          aria-label="Format JSON"
-                        >
-                          Format JSON
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setOriginalText(jsonText);
-                            insertTemplate("ideogram");
-                          }}
-                          aria-label="Insert Ideogram template"
-                        >
-                          Insert Ideogram template
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setOriginalText(jsonText);
-                            insertTemplate("imagen4");
-                          }}
-                          aria-label="Insert Imagen 4 template"
-                        >
-                          Insert Imagen 4 template
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => setShowDiff((v) => !v)}
-                          aria-label={showDiff ? "Hide diff" : "Show diff"}
-                        >
-                          {showDiff ? "Hide diff" : "Show diff"}
-                        </Button>
-                      </div>
-                      <Card className="mt-4">
-                        <CardHeader>
-                          <CardTitle className="text-sm">
-                            Merge Audio helpers
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <AudioMergeInline
-                            onMerge={(vo, dlg) => mergeAudioIntoJson(vo, dlg)}
-                          />
-                          <div className="mt-2 text-xs text-gray-600">
-                            Use either dialogue or voiceover. If audio isn’t
-                            enabled later, it will be ignored.
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                    <div className="flex flex-col gap-3">
-                      <ValidationPanel
-                        isValid={isValid}
-                        errors={ajvErrors}
-                        onJumpFirst={jumpToFirstError}
+    <div className="space-y-6">
+      <PageHeader
+        title="Scenes Plan"
+        description="Compose scenes with JSON or a friendly form. Live schema validation and helpful guidance."
+        actions={
+          <div className="flex items-center gap-2 text-xs">
+            {isValid ? (
+              <Badge variant="success">Valid</Badge>
+            ) : (
+              <Badge variant="error">Invalid</Badge>
+            )}
+          </div>
+        }
+      />
+      <nav className="flex gap-4 text-sm">
+        <Link
+          className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
+          href="/"
+        >
+          Dashboard
+        </Link>
+      </nav>
+      <Card>
+        <Tabs
+          sticky
+          tabs={[
+            {
+              id: "json",
+              label: "JSON",
+              content: (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    {!showDiff ? (
+                      <MonacoEditor
+                        height="520px"
+                        defaultLanguage="json"
+                        value={jsonText}
+                        onChange={(v) => onJsonChange(v || "")}
+                        onMount={(editor: any, monaco: any) => {
+                          editorRef.current = editor;
+                          try {
+                            monaco?.languages?.json?.jsonDefaults?.setDiagnosticsOptions?.(
+                              {
+                                validate: true,
+                                enableSchemaRequest: false,
+                                schemas: [
+                                  {
+                                    uri: "inmemory://model/scene_specs_line.schema.json",
+                                    fileMatch: ["*"],
+                                    schema: sceneSpecsLineSchema,
+                                  },
+                                ],
+                              },
+                            );
+                          } catch {}
+                        }}
+                        options={{
+                          minimap: { enabled: false },
+                          fontSize: 12,
+                        }}
                       />
-                      <Card variant="surface-2">
-                        <CardHeader>
-                          <CardTitle className="text-sm">
-                            Helper: What good looks like
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <ul className="list-disc pl-5 text-xs text-gray-700 space-y-1">
-                            <li>
-                              <b>Prompt</b>: concrete subject, setting, action,
-                              lighting, and style hints.
-                            </li>
-                            <li>
-                              <b>Aspect ratio</b>: use 9:16 for shorts; 1:1 for
-                              square, 16:9 for widescreen.
-                            </li>
-                            <li>
-                              <b>Speed modes</b>: Default balances quality; Fast
-                              for drafts; Slow for fidelity.
-                            </li>
-                          </ul>
-                        </CardContent>
-                      </Card>
+                    ) : (
+                      <MonacoDiffEditor
+                        height="520px"
+                        original={originalText}
+                        modified={jsonText}
+                        originalLanguage="json"
+                        modifiedLanguage="json"
+                        theme="vs-dark"
+                      />
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        onClick={submit}
+                        disabled={!isValid || submitBusy}
+                        aria-label="Submit plan"
+                      >
+                        Submit Plan
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={formatJson}
+                        aria-label="Format JSON"
+                      >
+                        Format JSON
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setOriginalText(jsonText);
+                          insertTemplate("ideogram");
+                        }}
+                        aria-label="Insert Ideogram template"
+                      >
+                        Insert Ideogram template
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setOriginalText(jsonText);
+                          insertTemplate("imagen4");
+                        }}
+                        aria-label="Insert Imagen 4 template"
+                      >
+                        Insert Imagen 4 template
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => setShowDiff((v) => !v)}
+                        aria-label={showDiff ? "Hide diff" : "Show diff"}
+                      >
+                        {showDiff ? "Hide diff" : "Show diff"}
+                      </Button>
                     </div>
+                    <Card className="mt-4">
+                      <CardHeader>
+                        <CardTitle className="text-sm">
+                          Merge Audio helpers
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <AudioMergeInline
+                          onMerge={(vo, dlg) => mergeAudioIntoJson(vo, dlg)}
+                        />
+                        <div className="mt-2 text-xs text-gray-600">
+                          Use either dialogue or voiceover. If audio isn’t
+                          enabled later, it will be ignored.
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                ),
-              },
-              {
-                id: "form",
-                label: "Form",
-                content: (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div className="space-y-3">
-                      <FieldText
-                        id="scene_id"
-                        label="Scene ID"
-                        value={form.scene_id}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, scene_id: v }))
+                  <div className="flex flex-col gap-3">
+                    <ValidationPanel
+                      isValid={isValid}
+                      errors={ajvErrors}
+                      onJumpFirst={jumpToFirstError}
+                    />
+                    <Card variant="surface-2">
+                      <CardHeader>
+                        <CardTitle className="text-sm">
+                          Helper: What good looks like
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="list-disc pl-5 text-xs text-gray-700 space-y-1">
+                          <li>
+                            <b>Prompt</b>: concrete subject, setting, action,
+                            lighting, and style hints.
+                          </li>
+                          <li>
+                            <b>Aspect ratio</b>: use 9:16 for shorts; 1:1 for
+                            square, 16:9 for widescreen.
+                          </li>
+                          <li>
+                            <b>Speed modes</b>: Default balances quality; Fast
+                            for drafts; Slow for fidelity.
+                          </li>
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              ),
+            },
+            {
+              id: "form",
+              label: "Form",
+              content: (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <FieldText
+                      id="scene_id"
+                      label="Scene ID"
+                      value={form.scene_id}
+                      onChange={(v) => setForm((f) => ({ ...f, scene_id: v }))}
+                      error={fieldError(ajvErrors, "/scene_id")}
+                    />
+                    <FieldText
+                      id="duration_s"
+                      label="Duration (seconds)"
+                      type="number"
+                      value={form.duration_s}
+                      onChange={(v) =>
+                        setForm((f) => ({ ...f, duration_s: v }))
+                      }
+                      error={fieldError(ajvErrors, "/duration_s")}
+                    />
+                    <FieldText
+                      id="composition"
+                      label="Composition"
+                      value={form.composition}
+                      onChange={(v) =>
+                        setForm((f) => ({ ...f, composition: v }))
+                      }
+                      error={fieldError(ajvErrors, "/composition")}
+                      helper="Camera, framing, overlays, CTA placement."
+                    />
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-1">
+                        Model
+                      </label>
+                      <select
+                        id="model"
+                        className="rounded border px-2 py-1 text-sm w-full"
+                        value={form.model}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            model: e.target.value as any,
+                          }))
                         }
-                        error={fieldError(ajvErrors, "/scene_id")}
-                      />
-                      <FieldText
-                        id="duration_s"
-                        label="Duration (seconds)"
-                        type="number"
-                        value={form.duration_s}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, duration_s: v }))
-                        }
-                        error={fieldError(ajvErrors, "/duration_s")}
-                      />
-                      <FieldText
-                        id="composition"
-                        label="Composition"
-                        value={form.composition}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, composition: v }))
-                        }
-                        error={fieldError(ajvErrors, "/composition")}
-                        helper="Camera, framing, overlays, CTA placement."
-                      />
-                      <div>
-                        <label className="block text-sm text-gray-700 mb-1">
-                          Model
-                        </label>
-                        <select
-                          id="model"
-                          className="rounded border px-2 py-1 text-sm w-full"
-                          value={form.model}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              model: e.target.value as any,
-                            }))
-                          }
-                        >
-                          <option value="ideogram-character">
-                            Ideogram Character
-                          </option>
-                          <option value="imagen-4">Imagen 4</option>
-                        </select>
-                        <InlineError text={fieldError(ajvErrors, "/model")} />
-                      </div>
-                      <FieldText
-                        id="prompt"
-                        label="Prompt"
-                        textarea
-                        value={form.prompt}
-                        onChange={(v) => setForm((f) => ({ ...f, prompt: v }))}
-                        helper="Describe subject, setting, action, camera, lighting, style. Use the hook as inspiration (not verbatim)."
-                        error={fieldError(ajvErrors, "/model_inputs/prompt")}
-                      />
-                      {form.model === "ideogram-character" && (
-                        <>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-sm text-gray-700 mb-1">
-                                Character
-                              </label>
-                              <select
-                                id="character_id"
-                                className="rounded border px-2 py-1 text-sm w-full"
-                                value={form.character_id || ""}
-                                onChange={(e) =>
-                                  setForm((f) => ({
-                                    ...f,
-                                    character_id: e.target.value,
-                                  }))
-                                }
-                              >
-                                <option value="">— Select —</option>
-                                {characters.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.name}
-                                  </option>
-                                ))}
-                              </select>
-                              <div className="mt-1 text-xs text-gray-600">
-                                Or paste a reference image URL.
-                              </div>
-                            </div>
-                            <FieldText
-                              id="character_reference_image"
-                              label="Reference image URL"
-                              value={form.character_reference_image || ""}
-                              onChange={(v) =>
+                      >
+                        <option value="ideogram-character">
+                          Ideogram Character
+                        </option>
+                        <option value="imagen-4">Imagen 4</option>
+                      </select>
+                      <InlineError text={fieldError(ajvErrors, "/model")} />
+                    </div>
+                    <FieldText
+                      id="prompt"
+                      label="Prompt"
+                      textarea
+                      value={form.prompt}
+                      onChange={(v) => setForm((f) => ({ ...f, prompt: v }))}
+                      helper="Describe subject, setting, action, camera, lighting, style. Use the hook as inspiration (not verbatim)."
+                      error={fieldError(ajvErrors, "/model_inputs/prompt")}
+                    />
+                    {form.model === "ideogram-character" && (
+                      <>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm text-gray-700 mb-1">
+                              Character
+                            </label>
+                            <select
+                              id="character_id"
+                              className="rounded border px-2 py-1 text-sm w-full"
+                              value={form.character_id || ""}
+                              onChange={(e) =>
                                 setForm((f) => ({
                                   ...f,
-                                  character_reference_image: v,
+                                  character_id: e.target.value,
                                 }))
                               }
-                              error={fieldError(
-                                ajvErrors,
-                                "/model_inputs/character_reference_image",
-                              )}
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <FieldText
-                              id="aspect_ratio"
-                              label="Aspect ratio"
-                              value={form.aspect_ratio}
-                              onChange={(v) =>
-                                setForm((f) => ({ ...f, aspect_ratio: v }))
-                              }
-                              error={fieldError(
-                                ajvErrors,
-                                "/model_inputs/aspect_ratio",
-                              )}
-                            />
-                            <div>
-                              <label className="block text-sm text-gray-700 mb-1">
-                                Rendering speed
-                              </label>
-                              <SegmentedControl
-                                ariaLabel="Rendering speed"
-                                options={[
-                                  { value: "Default", label: "Default" },
-                                  { value: "Fast", label: "Fast" },
-                                  { value: "Slow", label: "Slow" },
-                                ]}
-                                value={form.rendering_speed || "Default"}
-                                onChange={(v) =>
-                                  setForm((f) => ({
-                                    ...f,
-                                    rendering_speed: v as any,
-                                  }))
-                                }
-                              />
-                              <InlineError
-                                text={fieldError(
-                                  ajvErrors,
-                                  "/model_inputs/rendering_speed",
-                                )}
-                              />
+                            >
+                              <option value="">— Select —</option>
+                              {characters.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="mt-1 text-xs text-gray-600">
+                              Or paste a reference image URL.
                             </div>
                           </div>
-                        </>
-                      )}
-                      {form.model === "imagen-4" && (
-                        <>
+                          <FieldText
+                            id="character_reference_image"
+                            label="Reference image URL"
+                            value={form.character_reference_image || ""}
+                            onChange={(v) =>
+                              setForm((f) => ({
+                                ...f,
+                                character_reference_image: v,
+                              }))
+                            }
+                            error={fieldError(
+                              ajvErrors,
+                              "/model_inputs/character_reference_image",
+                            )}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
                           <FieldText
                             id="aspect_ratio"
                             label="Aspect ratio"
@@ -615,145 +569,185 @@ export default function ScenesPlanPage() {
                               "/model_inputs/aspect_ratio",
                             )}
                           />
-                          <FieldText
-                            id="negative_prompt"
-                            label="Negative prompt (optional)"
-                            value={form.negative_prompt || ""}
-                            onChange={(v) =>
-                              setForm((f) => ({ ...f, negative_prompt: v }))
-                            }
-                          />
-                        </>
-                      )}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-sm">Audio</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <FieldText
-                            id="vo_prompt"
-                            label="Voiceover prompt"
-                            textarea
-                            value={form.vo_prompt}
-                            onChange={(v) =>
-                              setForm((f) => ({ ...f, vo_prompt: v }))
-                            }
-                          />
-                          <div className="mt-2">
-                            <div className="flex items-center justify-between">
-                              <label className="text-sm text-gray-700">
-                                Dialogue lines
-                              </label>
-                              <button
-                                className="rounded border px-2 py-1 text-xs"
-                                onClick={() =>
-                                  setForm((f) => ({
-                                    ...f,
-                                    dialogue: [
-                                      ...f.dialogue,
-                                      { character: "", line: "" },
-                                    ],
-                                  }))
-                                }
-                                aria-label="Add dialogue line"
-                              >
-                                Add line
-                              </button>
-                            </div>
-                            <div className="mt-2 space-y-2">
-                              {form.dialogue.map((d, i) => (
-                                <div key={i} className="grid grid-cols-2 gap-2">
-                                  <input
-                                    id={`dialogue_${i}_character`}
-                                    className="rounded border px-2 py-1 text-sm"
-                                    placeholder="Character"
-                                    value={d.character}
-                                    onChange={(e) =>
-                                      setForm((f) => ({
-                                        ...f,
-                                        dialogue: f.dialogue.map((v, idx) =>
-                                          idx === i
-                                            ? {
-                                                ...v,
-                                                character: e.target.value,
-                                              }
-                                            : v,
-                                        ),
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    id={`dialogue_${i}_line`}
-                                    className="rounded border px-2 py-1 text-sm"
-                                    placeholder="Line"
-                                    value={d.line}
-                                    onChange={(e) =>
-                                      setForm((f) => ({
-                                        ...f,
-                                        dialogue: f.dialogue.map((v, idx) =>
-                                          idx === i
-                                            ? { ...v, line: e.target.value }
-                                            : v,
-                                        ),
-                                      }))
-                                    }
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                            <div className="mt-2 text-xs text-gray-600">
-                              Use either dialogue or voiceover. If audio isn’t
-                              enabled later, it will be ignored.
-                            </div>
+                          <div>
+                            <label className="block text-sm text-gray-700 mb-1">
+                              Rendering speed
+                            </label>
+                            <SegmentedControl
+                              ariaLabel="Rendering speed"
+                              options={[
+                                { value: "Default", label: "Default" },
+                                { value: "Fast", label: "Fast" },
+                                { value: "Slow", label: "Slow" },
+                              ]}
+                              value={form.rendering_speed || "Default"}
+                              onChange={(v) =>
+                                setForm((f) => ({
+                                  ...f,
+                                  rendering_speed: v as any,
+                                }))
+                              }
+                            />
+                            <InlineError
+                              text={fieldError(
+                                ajvErrors,
+                                "/model_inputs/rendering_speed",
+                              )}
+                            />
                           </div>
-                        </CardContent>
-                      </Card>
-                      <div className="pt-2 flex items-center gap-2">
+                        </div>
+                      </>
+                    )}
+                    {form.model === "imagen-4" && (
+                      <>
+                        <FieldText
+                          id="aspect_ratio"
+                          label="Aspect ratio"
+                          value={form.aspect_ratio}
+                          onChange={(v) =>
+                            setForm((f) => ({ ...f, aspect_ratio: v }))
+                          }
+                          error={fieldError(
+                            ajvErrors,
+                            "/model_inputs/aspect_ratio",
+                          )}
+                        />
+                        <FieldText
+                          id="negative_prompt"
+                          label="Negative prompt (optional)"
+                          value={form.negative_prompt || ""}
+                          onChange={(v) =>
+                            setForm((f) => ({ ...f, negative_prompt: v }))
+                          }
+                        />
+                      </>
+                    )}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-sm">Audio</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <FieldText
+                          id="vo_prompt"
+                          label="Voiceover prompt"
+                          textarea
+                          value={form.vo_prompt}
+                          onChange={(v) =>
+                            setForm((f) => ({ ...f, vo_prompt: v }))
+                          }
+                        />
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm text-gray-700">
+                              Dialogue lines
+                            </label>
+                            <button
+                              className="rounded border px-2 py-1 text-xs"
+                              onClick={() =>
+                                setForm((f) => ({
+                                  ...f,
+                                  dialogue: [
+                                    ...f.dialogue,
+                                    { character: "", line: "" },
+                                  ],
+                                }))
+                              }
+                              aria-label="Add dialogue line"
+                            >
+                              Add line
+                            </button>
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {form.dialogue.map((d, i) => (
+                              <div key={i} className="grid grid-cols-2 gap-2">
+                                <input
+                                  id={`dialogue_${i}_character`}
+                                  className="rounded border px-2 py-1 text-sm"
+                                  placeholder="Character"
+                                  value={d.character}
+                                  onChange={(e) =>
+                                    setForm((f) => ({
+                                      ...f,
+                                      dialogue: f.dialogue.map((v, idx) =>
+                                        idx === i
+                                          ? {
+                                              ...v,
+                                              character: e.target.value,
+                                            }
+                                          : v,
+                                      ),
+                                    }))
+                                  }
+                                />
+                                <input
+                                  id={`dialogue_${i}_line`}
+                                  className="rounded border px-2 py-1 text-sm"
+                                  placeholder="Line"
+                                  value={d.line}
+                                  onChange={(e) =>
+                                    setForm((f) => ({
+                                      ...f,
+                                      dialogue: f.dialogue.map((v, idx) =>
+                                        idx === i
+                                          ? { ...v, line: e.target.value }
+                                          : v,
+                                      ),
+                                    }))
+                                  }
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-2 text-xs text-gray-600">
+                            Use either dialogue or voiceover. If audio isn’t
+                            enabled later, it will be ignored.
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <div className="pt-2 flex items-center gap-2">
+                      <Button
+                        onClick={submit}
+                        disabled={!isValid || submitBusy}
+                        aria-label="Submit plan"
+                      >
+                        Submit Plan
+                      </Button>
+                      {!isValid && (
                         <Button
-                          onClick={submit}
-                          disabled={!isValid || submitBusy}
-                          aria-label="Submit plan"
+                          variant="secondary"
+                          size="sm"
+                          onClick={jumpToFirstError}
+                          aria-label="Jump to first error"
                         >
-                          Submit Plan
+                          Jump to first error
                         </Button>
-                        {!isValid && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={jumpToFirstError}
-                            aria-label="Jump to first error"
-                          >
-                            Jump to first error
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-sm">
-                            JSON preview
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <pre className="max-h-[480px] overflow-auto rounded border bg-gray-50 p-2 text-[12px]">
-                            {JSON.stringify(scene, null, 2)}
-                          </pre>
-                        </CardContent>
-                      </Card>
-                      <div className="mt-3">
-                        <HelperCopy />
-                      </div>
+                      )}
                     </div>
                   </div>
-                ),
-              },
-            ]}
-            defaultId="json"
-          />
-        </section>
-      </div>
-    </main>
+                  <div>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-sm">JSON preview</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <pre className="max-h-[480px] overflow-auto rounded border bg-gray-50 p-2 text-[12px]">
+                          {JSON.stringify(scene, null, 2)}
+                        </pre>
+                      </CardContent>
+                    </Card>
+                    <div className="mt-3">
+                      <HelperCopy />
+                    </div>
+                  </div>
+                </div>
+              ),
+            },
+          ]}
+          defaultId="json"
+        />
+      </Card>
+    </div>
   );
 }
 

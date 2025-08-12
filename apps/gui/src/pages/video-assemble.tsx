@@ -45,6 +45,7 @@ export default function VideoAssemblePage() {
   const [filmstripUrls, setFilmstripUrls] = useState<string[]>([]);
   const [transitions, setTransitions] = useState<string>("hard_cuts");
   const [motion, setMotion] = useState<string>("subtle parallax");
+  const [model, setModel] = useState<"veo-3" | "veo-3-fast">("veo-3-fast");
   const validateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const parsingRef = useRef<number>(0);
   // Audio tab fields
@@ -71,6 +72,8 @@ export default function VideoAssemblePage() {
       if (typeof parsed.transitions === "string")
         setTransitions(parsed.transitions);
       if (typeof parsed.motion === "string") setMotion(parsed.motion);
+      if (parsed.model === "veo-3" || parsed.model === "veo-3-fast")
+        setModel(parsed.model);
       const a = parsed.audio || {};
       const mode = a?.mode as "none" | "voiceover" | "dialogue" | undefined;
       if (mode === "none" || mode === "voiceover" || mode === "dialogue")
@@ -134,6 +137,7 @@ export default function VideoAssemblePage() {
       audio.dialogue_timing = dialogueTiming;
     }
     const candidate = {
+      model,
       order: orderArr,
       transitions,
       motion,
@@ -466,6 +470,20 @@ export default function VideoAssemblePage() {
                           value={motion}
                           onChange={(e) => setMotion(e.target.value)}
                         />
+                      </label>
+                      <label>
+                        <div className="text-gray-700">Model</div>
+                        <div className="mt-1">
+                          <SegmentedControl
+                            ariaLabel="Veo model"
+                            options={[
+                              { value: "veo-3", label: "Veo 3" },
+                              { value: "veo-3-fast", label: "Veo 3 Fast" },
+                            ]}
+                            value={model}
+                            onChange={(v) => setModel(v as any)}
+                          />
+                        </div>
                       </label>
                       <div className="col-span-3">
                         <div className="mt-4 rounded border p-3">
@@ -836,6 +854,7 @@ export default function VideoAssemblePage() {
 }
 
 const exampleManifest = {
+  model: "veo-3-fast",
   order: ["hook1_s1", "hook1_s2"],
   transitions: "hard_cuts",
   motion: "subtle parallax",

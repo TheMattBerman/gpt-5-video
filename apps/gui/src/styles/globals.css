@@ -6,6 +6,11 @@
   }
   body {
     @apply bg-neutral-50 text-neutral-700 font-sans antialiased;
+    background-image: radial-gradient(
+      rgba(0, 0, 0, 0.025) 1px,
+      transparent 1px
+    );
+    background-size: 16px 16px;
   }
   h1,
   h2,
@@ -29,7 +34,7 @@
     @apply w-full text-sm border-separate border-spacing-0;
   }
   .table-head-cell {
-    @apply sticky top-0 z-10 bg-white px-2 py-1 text-left text-gray-600 font-medium border-b;
+    @apply sticky top-0 z-10 bg-white/90 backdrop-blur px-2 py-1 text-left text-gray-600 font-medium border-b;
   }
   .table-cell {
     @apply px-2 py-1 align-top border-t;

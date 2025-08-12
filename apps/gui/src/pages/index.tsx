@@ -211,6 +211,9 @@ export default function Home() {
         }
       />
 
+      {/* Add SSE status line for smoke test */}
+      <div className="text-xs text-gray-600">SSE status: {String(ping)}</div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2" variant="surface-1">
           <CardHeader>

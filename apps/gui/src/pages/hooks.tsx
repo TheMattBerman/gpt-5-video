@@ -254,6 +254,26 @@ export default function HooksPage() {
     };
   }, [apiBase]);
 
+  // Initial load of any previously saved synthesized hooks (no synth_id required)
+  useEffect(() => {
+    void (async () => {
+      try {
+        const params = new URLSearchParams();
+        params.set("limit", String(synthPage.limit));
+        params.set("offset", String(synthPage.offset));
+        if (synthSort) params.set("sort", synthSort);
+        if (synthApprovedFilter === "approved") params.set("approved", "true");
+        if (synthApprovedFilter === "unapproved")
+          params.set("approved", "false");
+        if (synthIcp.trim()) params.set("icp", synthIcp.trim());
+        const res = await fetch(`${apiBase}/hooks/synth?${params.toString()}`);
+        const data = await res.json();
+        setSynth(Array.isArray(data.items) ? data.items : []);
+      } catch {}
+    })();
+    // Intentionally run once on mount to show any previously saved hooks
+  }, []);
+
   // Fetch recent mining runs for selection (friendly labels)
   useEffect(() => {
     let cancelled = false;
@@ -379,13 +399,21 @@ export default function HooksPage() {
 
   const corpusFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return corpus;
-    return corpus.filter((c) =>
-      String(c.caption_or_transcript || "")
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [search, corpus]);
+    let rows = corpus;
+    if (synthAngleFilter !== "all") {
+      rows = rows.filter(
+        (c) =>
+          String(c.detected_format || "").toLowerCase() === synthAngleFilter,
+      );
+    }
+    if (!q) return rows;
+    return rows.filter((c) => {
+      const text = String(c.caption_or_transcript || "").toLowerCase();
+      const author = String(c.author || "").toLowerCase();
+      const url = String(c.url || "").toLowerCase();
+      return text.includes(q) || author.includes(q) || url.includes(q);
+    });
+  }, [search, corpus, synthAngleFilter]);
 
   const synthFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -538,6 +566,18 @@ export default function HooksPage() {
                   onClick={() => setCorpusSort("created_at:asc")}
                 >
                   Posts oldest
+                </Chip>
+                <Chip
+                  selected={corpusSort === "views:desc"}
+                  onClick={() => setCorpusSort("views:desc")}
+                >
+                  Views high→low
+                </Chip>
+                <Chip
+                  selected={corpusSort === "views:asc"}
+                  onClick={() => setCorpusSort("views:asc")}
+                >
+                  Views low→high
                 </Chip>
                 <Chip
                   selected={synthSort === "created_at:desc"}
@@ -1112,6 +1152,7 @@ export default function HooksPage() {
                       <TH>Author</TH>
                       <TH>URL</TH>
                       <TH>Format</TH>
+                      <TH>Engagement</TH>
                       <TH>Latency (ms)</TH>
                       <TH>Caption/Transcript</TH>
                     </TRow>
@@ -1136,6 +1177,19 @@ export default function HooksPage() {
                           )}
                         </TD>
                         <TD>{c.detected_format || ""}</TD>
+                        <TD>
+                          <div className="whitespace-nowrap">
+                            <span className="mr-2">
+                              👀 {Number((c.metrics || {}).views || 0)}
+                            </span>
+                            <span className="mr-2">
+                              ❤ {Number((c.metrics || {}).likes || 0)}
+                            </span>
+                            <span>
+                              💬 {Number((c.metrics || {}).comments || 0)}
+                            </span>
+                          </div>
+                        </TD>
                         <TD>{Number((c.scrape_meta || {}).latency_ms || 0)}</TD>
                         <TD>
                           <div className="line-clamp-2 max-w-[420px]">
@@ -1151,7 +1205,7 @@ export default function HooksPage() {
           )}
           {/* Removed the confusing sample list; users go straight to the review table below. */}
         </section>
-        <section className="rounded border bg-white p-4 grid grid-cols-2 gap-4">
+        <Card className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-sm font-medium mb-2">
               Mine Hooks (POST /hooks/mine)
@@ -1306,7 +1360,6 @@ export default function HooksPage() {
               <div className="flex items-center gap-2">
                 <button
                   className="rounded border px-2 py-0.5"
-                  disabled={!lastSynthId}
                   onClick={refreshSynth}
                 >
                   Refresh synth
@@ -1685,7 +1738,7 @@ export default function HooksPage() {
               </div>
             )}
           </div>
-        </section>
+        </Card>
       </div>
     </main>
   );

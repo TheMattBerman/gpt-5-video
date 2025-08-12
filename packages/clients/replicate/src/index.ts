@@ -93,7 +93,11 @@ export class ReplicateClient {
     // As of dev, we keep placeholders but non-garbage format to avoid build breaks.
     ideogramCharacter: "ideogram-ai/ideogram-character@b7e4c4c1a1f2",
     imagen4: "google/imagen-4@9a0f0e0d1c2b",
-    veo3: "google/veo-3@7f1a2b3c4d5e",
+    // Default to Veo 3 Fast on Replicate; override with REPLICATE_VEO3_* envs for pinned IDs
+    veo3: "google/veo-3-fast@7f1a2b3c4d5e",
+    // Explicit variants for callers that want to choose
+    veo3Standard: "google/veo-3@6e5d4c3b2a1f",
+    veo3Fast: "google/veo-3-fast@7f1a2b3c4d5e",
     // Placeholder PaddleOCR model version; override with env in API
     paddleOCR: "paddlepaddle/paddle-ocr@latest",
   } as const;

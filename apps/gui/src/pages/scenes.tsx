@@ -8,6 +8,7 @@ import { ajv } from "@gpt5video/shared";
 // @ts-ignore
 import sceneSpecsLineSchema from "../../../../packages/schemas/schemas/scene_specs_line.schema.json";
 import dynamic from "next/dynamic";
+import { Card } from "../components/ui";
 const MonacoEditor = dynamic(
   async () => (await import("@monaco-editor/react")).default,
   { ssr: false },
@@ -156,7 +157,7 @@ export default function ScenesEditorPage() {
             </Link>
           </nav>
         </header>
-        <section className="rounded border bg-white p-4">
+        <Card>
           <div className="grid grid-cols-2 gap-4">
             <div className="min-h-[480px]">
               {!showDiff ? (
@@ -270,8 +271,8 @@ export default function ScenesEditorPage() {
               )}
             </div>
           </div>
-        </section>
-        <section className="rounded border bg-white p-4">
+        </Card>
+        <Card>
           <div className="text-sm font-medium mb-2">Audio panel</div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -346,7 +347,7 @@ export default function ScenesEditorPage() {
             your scene JSON. Validation still enforces that either dialogue or
             vo_prompt should be empty unless audio is enabled, per PRD.
           </div>
-        </section>
+        </Card>
       </div>
     </main>
   );

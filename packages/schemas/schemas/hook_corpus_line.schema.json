@@ -26,7 +26,15 @@
       "additionalProperties": false,
       "properties": {
         "request_id": { "type": "string" },
-        "latency_ms": { "type": "integer", "minimum": 0 }
+        "latency_ms": { "type": "integer", "minimum": 0 },
+        "page": { "type": "integer", "minimum": 0 },
+        "first_transcript_line": { "type": "string" },
+        "on_image_text": { "type": "string" },
+        "meme_markers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "key_frame_url": { "type": "string", "format": "uri" }
       },
       "required": ["request_id", "latency_ms"]
     }
@@ -42,4 +50,3 @@
     "scrape_meta"
   ]
 }
-

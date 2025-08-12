@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PageHeader from "../components/PageHeader";
+import { Card } from "../components/ui";
 import { ajv } from "@gpt5video/shared";
 import { useToast } from "../components/Toast";
 // For Week 1 in GUI, import schema JSON directly to avoid package export quirks from the schemas package
@@ -21,6 +22,8 @@ export default function BrandIngestPage() {
   const [resultId, setResultId] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [briefText, setBriefText] = useState<string>("");
+  const [briefSubmitting, setBriefSubmitting] = useState<boolean>(false);
 
   const validator = useMemo(() => ajv.compile(brandProfileSchema as any), []);
 
@@ -137,7 +140,7 @@ export default function BrandIngestPage() {
           </nav>
         </header>
 
-        <section className="rounded border bg-white p-4">
+        <Card>
           <div className="mb-3 text-sm text-gray-700">
             Paste or edit a `brand_profile.json` then validate and submit.
           </div>
@@ -224,7 +227,68 @@ export default function BrandIngestPage() {
               </div>
             </div>
           </div>
-        </section>
+        </Card>
+
+        <Card>
+          <div className="mb-3 text-sm text-gray-700">
+            Or drop a creative brief and let the system synthesize a brand
+            profile for you.
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <textarea
+              className="h-[240px] w-full resize-vertical rounded border p-2 font-mono text-xs"
+              placeholder="Paste creative brief here..."
+              value={briefText}
+              onChange={(e) => setBriefText(e.target.value)}
+            />
+            <div className="flex flex-col">
+              <div className="text-sm font-medium">Generate from brief</div>
+              <div className="text-xs text-gray-600 mt-1">
+                We call the LLM to extract voice, ICP, banned phrases, legal
+                constraints, and objectives into the schema.
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    if (!briefText.trim()) return;
+                    setBriefSubmitting(true);
+                    try {
+                      const res = await fetch(`${apiBase}/ingest/brief`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          brief_text: briefText,
+                          brand_key: "default",
+                        }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok)
+                        throw new Error(String(data?.error || res.statusText));
+                      const profile = data?.data || data;
+                      const txt = JSON.stringify(profile, null, 2);
+                      setJsonText(txt);
+                      validate(txt);
+                      setResultId(String(data?.id || ""));
+                      show({ title: "Profile generated", variant: "success" });
+                    } catch (e: any) {
+                      show({
+                        title: "Generation failed",
+                        description: String(e?.message || e),
+                        variant: "error",
+                      });
+                    } finally {
+                      setBriefSubmitting(false);
+                    }
+                  }}
+                  disabled={briefSubmitting || !briefText.trim()}
+                  className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
+                >
+                  {briefSubmitting ? "Generating..." : "Generate profile"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Card>
       </div>
     </main>
   );

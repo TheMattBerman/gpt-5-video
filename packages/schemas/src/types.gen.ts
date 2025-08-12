@@ -46,6 +46,11 @@ export interface HookCorpusLine {
   scrape_meta: {
     request_id: string;
     latency_ms: number;
+    page?: number;
+    first_transcript_line?: string;
+    on_image_text?: string;
+    meme_markers?: string[];
+    key_frame_url?: string;
   };
 }
 
@@ -97,6 +102,7 @@ export interface SceneSpecLine {
 export type VideoManifest = {
   [k: string]: unknown;
 } & {
+  model?: "veo-3" | "veo-3-fast";
   /**
    * @minItems 1
    */

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PageHeader from "../components/PageHeader";
+import { Card } from "../components/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Tooltip } from "../components/ui";
 import QuickTour from "../components/QuickTour";
@@ -296,7 +297,7 @@ export default function ScenesRenderPage() {
             Dashboard
           </Link>
         </nav>
-        <section className="rounded border bg-white p-4">
+        <Card>
           <div className="mb-3 text-sm text-gray-700">
             Paste a valid scene spec, submit to render, and preview outputs.
           </div>
@@ -398,9 +399,9 @@ export default function ScenesRenderPage() {
               )}
             </div>
           </div>
-        </section>
+        </Card>
         {jobId && (
-          <section className="rounded border bg-white p-4">
+          <Card>
             <div className="text-sm font-medium mb-2">Live status</div>
             <div className="flex items-center gap-2 text-xs mb-2">
               <span className="text-gray-600">job</span>
@@ -431,10 +432,10 @@ export default function ScenesRenderPage() {
                 <div className="text-gray-500">Waiting for events…</div>
               )}
             </div>
-          </section>
+          </Card>
         )}
         {!!outputs.length && (
-          <section className="rounded border bg-white p-4">
+          <Card>
             <div className="text-sm font-medium mb-2">Outputs</div>
             <div className="grid grid-cols-3 gap-3">
               {outputs.map((u, i) => (
@@ -479,7 +480,7 @@ export default function ScenesRenderPage() {
                 </div>
               ))}
             </div>
-          </section>
+          </Card>
         )}
       </div>
     </main>

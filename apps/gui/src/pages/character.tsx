@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PageHeader from "../components/PageHeader";
+import { Card } from "../components/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
 import { ajv } from "@gpt5video/shared";
@@ -259,7 +260,7 @@ export default function CharacterPage() {
           </nav>
         </header>
 
-        <section className="rounded border bg-white p-4 space-y-3">
+        <Card className="space-y-3">
           <div className="text-sm font-medium">Reference images</div>
           <input
             ref={fileInputRef}
@@ -315,9 +316,9 @@ export default function CharacterPage() {
               </div>
             </div>
           )}
-        </section>
+        </Card>
 
-        <section className="rounded border bg-white p-4 space-y-3">
+        <Card className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium">Saved Characters</div>
             <Button
@@ -368,9 +369,9 @@ export default function CharacterPage() {
           <div className="text-xs text-gray-600">
             This loads the most recently saved character profile.
           </div>
-        </section>
+        </Card>
 
-        <section className="rounded border bg-white p-4 grid grid-cols-2 gap-4">
+        <Card className="grid grid-cols-2 gap-4">
           <div className="space-y-3">
             <label className="block text-sm">
               <span className="text-gray-700">Name (optional)</span>
@@ -438,9 +439,9 @@ export default function CharacterPage() {
               )}
             </div>
           </div>
-        </section>
+        </Card>
 
-        <section className="rounded border bg-white p-4 space-y-3">
+        <Card className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium">Stability test</div>
             {winner && (
@@ -554,7 +555,7 @@ export default function CharacterPage() {
               </div>
             </div>
           </div>
-        </section>
+        </Card>
       </div>
     </main>
   );

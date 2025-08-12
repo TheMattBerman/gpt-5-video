@@ -24,7 +24,7 @@ export default function Tabs({
   return (
     <div>
       <div
-        className={`${sticky ? "sticky top-0 z-10 bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60" : ""} flex items-center gap-2 border-b`}
+        className={`${sticky ? "sticky top-0 z-10 bg-gradient-to-b from-white/80 to-accent-50/50 backdrop-blur supports-[backdrop-filter]:bg-white/60" : ""} flex items-center gap-2 border-b`}
         ref={listRef}
         role="tablist"
         aria-orientation="horizontal"
@@ -36,9 +36,9 @@ export default function Tabs({
             role="tab"
             tabIndex={active === t.id ? 0 : -1}
             aria-selected={active === t.id}
-            className={`px-3 py-2 text-sm -mb-px border-b-2 rounded-t-md transition-colors duration-150 ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 ${
+            className={`px-3 py-2 text-sm -mb-px border-b-2 rounded-t-md transition-all duration-150 ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 ${
               active === t.id
-                ? "border-accent-600 bg-accent-50 text-gray-900"
+                ? "border-accent-600 bg-accent-50 text-gray-900 shadow-sm"
                 : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50"
             }`}
             onClick={() => setActive(t.id)}

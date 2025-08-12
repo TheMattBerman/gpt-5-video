@@ -36,6 +36,10 @@ import {
   getNextBrandVersion,
   getLatestBrandProfile,
   getBrandProfileById,
+  insertSceneSpecs,
+  listSceneSpecs,
+  insertSceneImageLine,
+  insertVideoManifest,
 } from "./db";
 import {
   createS3Client,
@@ -49,6 +53,8 @@ import {
   ScrapeCreatorsClient,
   scGetTiktokProfileVideos,
   scGetTiktokVideo,
+  scGetInstagramUserReelsSimple,
+  scGetInstagramMediaTranscript,
 } from "@gpt5video/scrapecreators";
 import {
   ReplicateClient,
@@ -133,6 +139,60 @@ const validateCharacter = (() => {
   return ajv.compile(schema as any);
 })();
 
+// --- Feature flags / guard toggles ---
+const BRAND_LOCK_ENABLED = String(process.env.ENFORCE_BRAND_LOCK || "false")
+  .toLowerCase()
+  .startsWith("t");
+
+async function requireBrandLocked(
+  req: Request,
+  res: Response,
+): Promise<boolean> {
+  if (!BRAND_LOCK_ENABLED) return true;
+  try {
+    const latest = await getLatestBrandProfile();
+    if (!latest) {
+      res.status(409).json({ error: "brand_profile_required" });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "brand_check_failed" });
+    return false;
+  }
+}
+
+// --- Simple heuristic classifier for hook formats/angles ---
+function detectFormatFromText(text: string): string {
+  const t = String(text || "").trim();
+  if (!t) return "general";
+  if (/^how to\b|here(?:'|’)s how|\b(\d+\s*steps?)\b|framework/i.test(t))
+    return "howto";
+  if (
+    /\b(?:not|isn'?t|aren'?t)\b|\bwrong\b|\bmyth\b|^everyone|^nobody|^no one/i.test(
+      t,
+    )
+  )
+    return "contrarian";
+  if (/^stop\b|^wait\b|^listen\b|^hold up\b|^everyone|^nobody|^no one/i.test(t))
+    return "pattern_interrupt";
+  return "insight";
+}
+
+function detectMemeMarkers(text: string): string[] {
+  const markers: string[] = [];
+  const t = String(text || "").toLowerCase();
+  if (/greenscreen|green screen/.test(t)) markers.push("green_screen");
+  if (/duet|stitch/.test(t)) markers.push("remix");
+  if (/storytime|story time/.test(t)) markers.push("storytime");
+  if (/pov\b/.test(t)) markers.push("pov");
+  if (/hook|stop scrolling|don't scroll|wait/.test(t))
+    markers.push("scroll_stop");
+  if (/capcut|template/.test(t)) markers.push("template");
+  return markers;
+}
+
 app.post("/ingest/brand", (req: Request, res: Response) => {
   if (!validateBrand(req.body)) {
     return res
@@ -160,6 +220,68 @@ app.post("/ingest/brand", (req: Request, res: Response) => {
     run_id: (req as any).id || undefined,
     data,
   });
+});
+
+// Accept a free-form brief and synthesize a brand_profile via LLM, then persist
+app.post("/ingest/brief", async (req: Request, res: Response) => {
+  try {
+    const brief = String(req.body?.brief_text || req.body?.brief || "").trim();
+    const brandKey = String(req.body?.brand_key || "").trim() || "default";
+    if (!brief) return res.status(400).json({ error: "brief_text_required" });
+    const openai = process.env.OPENAI_API_KEY || "";
+    if (!openai)
+      return res.status(400).json({ error: "openai_api_key_required" });
+    const reqBody: any = {
+      model: process.env.OPENAI_LLM_MODEL || "gpt-5",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a brand strategist. Read the brief and output ONLY a valid JSON object matching brand_profile.schema.json. No comments or prose.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            brief,
+            schema_contract:
+              "BrandProfile: { brand_id:string, voice:{principles[],banned_phrases[]}, icp_segments:[{name,pains[],gains[]}], proof[], legal_constraints[], objectives[], done_criteria[] }",
+            instructions:
+              "Infer brand_id slug; extract voice principles, banned phrases, ICP segments, legal constraints, proof points, objectives, and done criteria. Keep arrays concise.",
+          }),
+        },
+      ],
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+    };
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openai}`,
+      },
+      body: JSON.stringify(reqBody),
+    });
+    const data = await resp.json();
+    const content = data?.choices?.[0]?.message?.content || "{}";
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(content);
+    } catch {}
+    if (!validateBrand(parsed)) {
+      return res.status(422).json({
+        error: "llm_brand_profile_invalid",
+        details: validateBrand.errors,
+        raw: parsed,
+      });
+    }
+    const id = `brand_${Date.now()}`;
+    const version = await getNextBrandVersion(brandKey);
+    await insertBrandProfile({ id, brandKey, version, data: parsed });
+    res.json({ id, brand_key: brandKey, version, data: parsed });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "ingest_brief_failed" });
+  }
 });
 
 // Retrieve latest brand profile (optionally by brand_key)
@@ -260,104 +382,188 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
           const errors: any[] = [];
           for (const src of sources) {
             try {
-              const vids = await scGetTiktokProfileVideos({
-                apiKey: scApiKey,
-                handle: src.handle,
-                user_id: undefined,
-                amount: Math.max(1, Math.min(Number(src.limit || 20), 100)),
-                trim: true,
-                baseUrl: process.env.SCRAPECREATORS_BASE_URL || undefined,
-              });
-              for (const v of vids) {
-                const shareUrl = String(
-                  v?.share_url || v?.share_info?.share_url || v?.url || "",
-                );
-                const author = String(
-                  v?.author?.unique_id ||
-                    v?.author?.nickname ||
-                    src.handle ||
-                    "",
-                );
-                const caption = String(
-                  v?.desc || v?.content_desc || v?.title || "",
-                );
-                // Try to fetch transcript for a stronger first-line hook seed
-                let firstTransLine: string | undefined;
-                let onImageText: string | undefined;
-                try {
-                  if (shareUrl) {
-                    const info = await scGetTiktokVideo({
-                      apiKey: scApiKey,
-                      url: shareUrl,
-                      get_transcript: true,
-                      trim: true,
-                      baseUrl: process.env.SCRAPECREATORS_BASE_URL || undefined,
-                    });
-                    const transcript = String(info?.transcript || "").trim();
-                    if (transcript) {
-                      const head =
-                        transcript.split(/\n|[.!?]/)[0] || transcript;
-                      firstTransLine = head.slice(0, 140).trim();
-                    }
-                    // OCR: try to extract on-image text from the first frame URL if present
-                    const frameUrl = String(
-                      (info as any)?.aweme_detail?.video?.cover
-                        ?.url_list?.[0] ||
-                        (info as any)?.aweme_detail?.video?.origin_cover
-                          ?.url_list?.[0] ||
-                        "",
-                    );
-                    if (frameUrl && process.env.REPLICATE_API_TOKEN) {
-                      try {
-                        const rep = new ReplicateClient(
-                          process.env.REPLICATE_API_TOKEN,
-                        );
-                        const pred = await rep.runPaddleOCR({
-                          image: frameUrl,
-                          // model-specific keys vary; many accept 'image' or 'input'
-                        });
-                        const out = (pred?.output as any) || [];
-                        if (Array.isArray(out)) {
-                          const joined = out
-                            .map((o: any) =>
-                              typeof o?.text === "string" ? o.text : "",
-                            )
-                            .filter(Boolean)
-                            .join(" ")
-                            .trim();
-                          if (joined) onImageText = joined.slice(0, 140);
-                        } else if (typeof out === "string" && out.trim()) {
-                          onImageText = String(out).slice(0, 140);
-                        }
-                      } catch {}
-                    }
-                  }
-                } catch {}
-                const views = Number(v?.statistics?.play_count || 0);
-                all.push({
-                  platform: src.platform,
-                  author,
-                  url: shareUrl,
-                  caption_or_transcript:
-                    onImageText || firstTransLine || caption,
-                  detected_format: "", // can be post-processed later
-                  metrics: {
-                    views,
-                    likes: Number(v?.statistics?.digg_count || 0),
-                    comments: Number(v?.statistics?.comment_count || 0),
-                  },
-                  scraper: "scrapecreators",
-                  scrape_meta: {
-                    request_id: (req as any).id || "",
-                    page: 0,
-                    first_transcript_line: firstTransLine || null,
-                    on_image_text: onImageText || null,
-                  },
-                  platform_post_id: String(
-                    v?.aweme_id || v?.id || v?.id_str || "",
-                  ),
+              if (String(src.platform).toLowerCase() === "tiktok") {
+                const vids = await scGetTiktokProfileVideos({
+                  apiKey: scApiKey,
+                  handle: src.handle,
+                  user_id: undefined,
+                  amount: Math.max(1, Math.min(Number(src.limit || 20), 100)),
+                  trim: true,
+                  baseUrl: process.env.SCRAPECREATORS_BASE_URL || undefined,
                 });
-                if (all.length >= Math.max(1, Number(src.limit || 20))) break;
+                for (const v of vids) {
+                  const shareUrl = String(
+                    v?.share_url || v?.share_info?.share_url || v?.url || "",
+                  );
+                  const author = String(
+                    v?.author?.unique_id ||
+                      v?.author?.nickname ||
+                      src.handle ||
+                      "",
+                  );
+                  const caption = String(
+                    v?.desc || v?.content_desc || v?.title || "",
+                  );
+                  // Try to fetch transcript for a stronger first-line hook seed
+                  let firstTransLine: string | undefined;
+                  let onImageText: string | undefined;
+                  let keyFrameUrl: string | undefined;
+                  try {
+                    if (shareUrl) {
+                      const info = await scGetTiktokVideo({
+                        apiKey: scApiKey,
+                        url: shareUrl,
+                        get_transcript: true,
+                        trim: true,
+                        baseUrl:
+                          process.env.SCRAPECREATORS_BASE_URL || undefined,
+                      });
+                      const transcript = String(info?.transcript || "").trim();
+                      if (transcript) {
+                        const head =
+                          transcript.split(/\n|[.!?]/)[0] || transcript;
+                        firstTransLine = head.slice(0, 140).trim();
+                      }
+                      // OCR: try to extract on-image text from the first frame URL if present
+                      const frameUrl = String(
+                        (info as any)?.aweme_detail?.video?.cover
+                          ?.url_list?.[0] ||
+                          (info as any)?.aweme_detail?.video?.origin_cover
+                            ?.url_list?.[0] ||
+                          "",
+                      );
+                      keyFrameUrl = frameUrl || undefined;
+                      if (frameUrl && process.env.REPLICATE_API_TOKEN) {
+                        try {
+                          const rep = new ReplicateClient(
+                            process.env.REPLICATE_API_TOKEN,
+                          );
+                          const pred = await rep.runPaddleOCR({
+                            image: frameUrl,
+                          });
+                          const out = (pred?.output as any) || [];
+                          if (Array.isArray(out)) {
+                            const joined = out
+                              .map((o: any) =>
+                                typeof o?.text === "string" ? o.text : "",
+                              )
+                              .filter(Boolean)
+                              .join(" ")
+                              .trim();
+                            if (joined) onImageText = joined.slice(0, 140);
+                          } else if (typeof out === "string" && out.trim()) {
+                            onImageText = String(out).slice(0, 140);
+                          }
+                        } catch {}
+                      }
+                    }
+                  } catch {}
+                  const views = Number(v?.statistics?.play_count || 0);
+                  const primaryText = (
+                    onImageText ||
+                    firstTransLine ||
+                    caption ||
+                    ""
+                  ).slice(0, 200);
+                  const keyFrame =
+                    typeof keyFrameUrl === "string" ? keyFrameUrl : "";
+                  all.push({
+                    platform: src.platform,
+                    author,
+                    url: shareUrl,
+                    caption_or_transcript: primaryText,
+                    detected_format: detectFormatFromText(primaryText),
+                    metrics: {
+                      views,
+                      likes: Number(v?.statistics?.digg_count || 0),
+                      comments: Number(v?.statistics?.comment_count || 0),
+                    },
+                    scraper: "scrapecreators",
+                    scrape_meta: {
+                      request_id: (req as any).id || "",
+                      page: 0,
+                      first_transcript_line: firstTransLine || null,
+                      on_image_text: onImageText || null,
+                      key_frame_url: keyFrame || null,
+                      meme_markers: detectMemeMarkers(primaryText),
+                    },
+                    platform_post_id: String(
+                      v?.aweme_id || v?.id || v?.id_str || "",
+                    ),
+                  });
+                  if (all.length >= Math.max(1, Number(src.limit || 20))) break;
+                }
+              } else if (String(src.platform).toLowerCase() === "instagram") {
+                const reels = await scGetInstagramUserReelsSimple({
+                  apiKey: scApiKey,
+                  handle: src.handle,
+                  amount: Math.max(1, Math.min(Number(src.limit || 20), 100)),
+                  trim: true,
+                  baseUrl: process.env.SCRAPECREATORS_BASE_URL || undefined,
+                });
+                for (const r of reels) {
+                  // Best-effort mapping
+                  const shareUrl = String(
+                    r?.permalink || r?.url || r?.shortcode_url || "",
+                  );
+                  const author = String(
+                    r?.username || r?.owner || src.handle || "",
+                  );
+                  const caption = String(r?.caption || r?.title || "");
+                  const keyThumb = String(
+                    r?.thumbnail_url || r?.thumbnail || r?.cover || "",
+                  );
+                  // Try transcript endpoint for IG media
+                  let firstTransLine: string | undefined;
+                  try {
+                    if (shareUrl) {
+                      const tr = await scGetInstagramMediaTranscript({
+                        apiKey: scApiKey,
+                        url: shareUrl,
+                        baseUrl:
+                          process.env.SCRAPECREATORS_BASE_URL || undefined,
+                      });
+                      const text = Array.isArray(tr?.transcripts)
+                        ? String(tr.transcripts[0]?.text || "")
+                        : "";
+                      if (text) {
+                        firstTransLine = text
+                          .split(/[.!?\n]/)[0]
+                          ?.slice(0, 140);
+                      }
+                    }
+                  } catch {}
+                  const views = Number(r?.play_count || r?.views || 0);
+                  const primaryText = (firstTransLine || caption || "").slice(
+                    0,
+                    200,
+                  );
+                  all.push({
+                    platform: src.platform,
+                    author,
+                    url: shareUrl,
+                    caption_or_transcript: primaryText,
+                    detected_format: detectFormatFromText(primaryText),
+                    metrics: {
+                      views,
+                      likes: Number(r?.like_count || r?.likes || 0),
+                      comments: Number(r?.comment_count || r?.comments || 0),
+                    },
+                    scraper: "scrapecreators",
+                    scrape_meta: {
+                      request_id: (req as any).id || "",
+                      page: 0,
+                      first_transcript_line: firstTransLine || null,
+                      key_frame_url: keyThumb || null,
+                      meme_markers: detectMemeMarkers(primaryText),
+                    },
+                    platform_post_id: String(r?.id || r?.shortcode || ""),
+                  });
+                  if (all.length >= Math.max(1, Number(src.limit || 20))) break;
+                }
+              } else {
+                // Unsupported platform in this run; mark as error but continue
+                throw new Error(`unsupported_platform ${src.platform}`);
               }
             } catch (e: any) {
               errors.push({
@@ -435,6 +641,7 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
 
 app.post("/hooks/synthesize", async (req: Request, res: Response) => {
   try {
+    if (!(await requireBrandLocked(req, res))) return;
     const body = (req.body || {}) as any;
     const jobId = `hooks_synthesize_${Date.now()}`;
     await insertJob({
@@ -660,6 +867,38 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
           status: "processing",
           progress: { step: "persist", pct: 85 },
         });
+        // Risk flagging based on brand banned phrases and simple heuristics
+        try {
+          const brand = await getLatestBrandProfile();
+          const banned: string[] =
+            (brand?.data?.voice?.banned_phrases as string[]) || [];
+          const legal: string[] =
+            (brand?.data?.legal_constraints as string[]) || [];
+          const mkFlags = (text: string) => {
+            const flags = new Set<string>();
+            const lower = text.toLowerCase();
+            for (const p of banned)
+              if (p && lower.includes(p.toLowerCase()))
+                flags.add("banned_phrase");
+            for (const l of legal)
+              if (l && lower.includes(l.toLowerCase()))
+                flags.add("legal_constraint_match");
+            if (
+              /(guarantee|always|never fail|will (?:double|triple)|instant results)/i.test(
+                text,
+              )
+            )
+              flags.add("implied_guarantee");
+            return Array.from(flags);
+          };
+          out = out.map((o) => ({
+            ...o,
+            risk_flags: Array.from(
+              new Set([...(o.risk_flags || []), ...mkFlags(o.hook_text)]),
+            ),
+          }));
+        } catch {}
+
         await insertHookSynthItems(jobId, mineId || null, out);
         await insertCost({
           jobId,
@@ -908,22 +1147,123 @@ app.post("/character/stability-test", async (req: Request, res: Response) => {
   }
 });
 
-app.post("/scenes/plan", (req: Request, res: Response) => {
-  const data = req.body;
-  const items = Array.isArray(data) ? data : [data];
-  for (const item of items) {
-    if (!validateSceneSpec(item)) {
-      return res.status(400).json({
-        error: "Invalid scene spec",
-        details: validateSceneSpec.errors,
-      });
+app.post("/scenes/plan", async (req: Request, res: Response) => {
+  try {
+    if (!(await requireBrandLocked(req, res))) return;
+    const data = req.body;
+    const items = Array.isArray(data) ? data : [data];
+    for (const item of items) {
+      if (!validateSceneSpec(item)) {
+        return res.status(400).json({
+          error: "Invalid scene spec",
+          details: validateSceneSpec.errors,
+        });
+      }
     }
+    const batchId = `scenespecs_${Date.now()}`;
+    await insertSceneSpecs(batchId, items as any[]);
+    res.json({
+      id: batchId,
+      run_id: (req as any).id || undefined,
+      count: items.length,
+    });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "scenes_plan_failed" });
   }
-  res.json({
-    id: `scenespecs_${Date.now()}`,
-    run_id: (req as any).id || undefined,
-    data,
-  });
+});
+
+app.get("/scenes/plan", async (req: Request, res: Response) => {
+  try {
+    const batchId = String(req.query.batch_id || "").trim() || undefined;
+    const sceneId = String(req.query.scene_id || "").trim() || undefined;
+    const limit = Number(req.query.limit || 50);
+    const offset = Number(req.query.offset || 0);
+    const rows = await listSceneSpecs({ batchId, sceneId, limit, offset });
+    res.json({ items: rows });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "scenes_plan_list_failed" });
+  }
+});
+
+// Auto plan scenes from hooks using brand voice and schema guardrails
+app.post("/scenes/auto-plan", async (req: Request, res: Response) => {
+  try {
+    if (!(await requireBrandLocked(req, res))) return;
+    const body = req.body || {};
+    const openai = process.env.OPENAI_API_KEY || "";
+    if (!openai)
+      return res.status(400).json({ error: "openai_api_key_required" });
+    const hooks: string[] = Array.isArray(body?.hooks)
+      ? body.hooks.map((h: any) => String(h)).filter((s: string) => s.trim())
+      : typeof body?.hook === "string"
+        ? [String(body.hook)]
+        : [];
+    const perHook = Math.max(1, Math.min(Number(body?.count_per_hook || 3), 6));
+    if (hooks.length === 0)
+      return res.status(400).json({ error: "hooks_required" });
+
+    const brandLatest = await getLatestBrandProfile();
+    const reqBody: any = {
+      model: process.env.OPENAI_LLM_MODEL || "gpt-5",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You write production-ready scene blueprints. Output only JSON (no prose). Each scene follows the SceneSpecLine schema.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            brand: brandLatest?.data || {},
+            hooks,
+            count_per_hook: perHook,
+            schema_contract:
+              "SceneSpecLine: { scene_id:string, duration_s:number (<= 5), composition:string, props:string[], overlays:[{type:string,text?:string,time?:number}], model:'ideogram-character'|'imagen-4', model_inputs:object, audio?:{dialogue?:[{character,line}], vo_prompt?:string} }",
+            instructions:
+              "For each hook, emit 3-5 short scenes (<= 2.5s each). Prefer model='ideogram-character' with character_reference_image left as a placeholder. Use aspect_ratio '9:16' and rendering_speed 'Default'. For audio, include EITHER dialogue lines OR empty vo_prompt (do not include both). Return JSON { items: SceneSpecLine[] }.",
+          }),
+        },
+      ],
+      temperature: 0.4,
+      response_format: { type: "json_object" },
+    };
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openai}`,
+      },
+      body: JSON.stringify(reqBody),
+    });
+    const data = await resp.json();
+    const content = data?.choices?.[0]?.message?.content || "{}";
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(content);
+    } catch {}
+    const items = Array.isArray(parsed?.items) ? parsed.items : [];
+    const validItems: any[] = [];
+    for (const it of items) {
+      const ok = validateSceneSpec(it);
+      if (ok) validItems.push(it);
+    }
+    if (validItems.length === 0) {
+      return res.status(422).json({ error: "no_valid_scenes" });
+    }
+    const batchId = `scenespecs_${Date.now()}`;
+    await insertSceneSpecs(batchId, validItems as any[]);
+    res.json({
+      id: batchId,
+      count: validItems.length,
+      invalid: items.length - validItems.length,
+      items: validItems,
+    });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "auto_plan_failed" });
+  }
 });
 
 const MODEL_VERSIONS: Record<string, string> = {
@@ -934,7 +1274,13 @@ const MODEL_VERSIONS: Record<string, string> = {
     process.env.REPLICATE_IMAGEN4_VERSION ||
     ReplicateClient.defaultVersions.imagen4,
   "veo-3":
-    process.env.REPLICATE_VEO3_VERSION || ReplicateClient.defaultVersions.veo3,
+    process.env.REPLICATE_VEO3_VERSION ||
+    (ReplicateClient.defaultVersions as any).veo3Standard ||
+    ReplicateClient.defaultVersions.veo3,
+  "veo-3-fast":
+    process.env.REPLICATE_VEO3_FAST_VERSION ||
+    (ReplicateClient.defaultVersions as any).veo3Fast ||
+    ReplicateClient.defaultVersions.veo3,
 };
 
 import { buildModelInputs } from "./models";
@@ -1015,6 +1361,7 @@ function extractSeed(pred: any): number | undefined {
 
 app.post("/scenes/render", async (req: Request, res: Response) => {
   try {
+    if (!(await requireBrandLocked(req, res))) return;
     const reqStart = Date.now();
     // Async mode via queue
     const idemKey =
@@ -1127,6 +1474,7 @@ app.post("/scenes/render", async (req: Request, res: Response) => {
 
 app.post("/videos/assemble", async (req: Request, res: Response) => {
   try {
+    if (!(await requireBrandLocked(req, res))) return;
     const reqStart = Date.now();
     // Async via queue
     const idemKey =
@@ -1183,7 +1531,7 @@ app.post("/videos/assemble", async (req: Request, res: Response) => {
     await enqueueJob({
       id: jobId,
       type: "video_assemble",
-      payload: { manifest },
+      payload: { manifest, model: manifest?.model },
       idemKey: idemKey || undefined,
       jobMeta: { request: manifest },
     });
@@ -1584,6 +1932,38 @@ app.get("/assets", async (req: Request, res: Response) => {
   }
 });
 
+// Scene images listing (archive access)
+app.get("/scenes/images", async (req: Request, res: Response) => {
+  try {
+    const sceneId = String(req.query.scene_id || "").trim();
+    if (!sceneId) return res.status(400).json({ error: "scene_id_required" });
+    const { rows } = await pool.query(
+      `select scene_id, image_url, seed, model_version, params, job_id, created_at from scene_images where scene_id = $1 order by created_at desc`,
+      [sceneId],
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "scene_images_list_failed" });
+  }
+});
+
+// Retrieve persisted video manifest for a given job
+app.get("/videos/:job_id/manifest", async (req: Request, res: Response) => {
+  try {
+    const jobId = String(req.params.job_id);
+    const { rows } = await pool.query(
+      `select job_id, manifest, created_at from video_manifests where job_id = $1 order by created_at desc limit 1`,
+      [jobId],
+    );
+    if (!rows[0]) return res.status(404).json({ error: "not_found" });
+    res.json(rows[0]);
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "video_manifest_get_failed" });
+  }
+});
+
 const port = Number(process.env.PORT || 4000);
 ensureTables().then(() => {
   startWorkerLoop();
@@ -1737,6 +2117,17 @@ async function handleSceneRenderJob(
           url,
           key: null,
         });
+        // Persist scene_images line if image
+        if (type === "image") {
+          await insertSceneImageLine({
+            scene_id: String((scene as any)?.scene_id || "unknown"),
+            image_url: url,
+            seed: seed ?? null,
+            model_version: finalPred.version || null,
+            params: (scene as any)?.model_inputs || null,
+            job_id: jobId,
+          });
+        }
       }
       await insertCost({
         jobId,
@@ -1774,9 +2165,14 @@ async function handleVideoAssembleJob(
     });
     log.info({ step: "creating_prediction" }, "video_assemble.start");
     const prompt = buildVideoPrompt(manifest);
+    const requestedModel = String((manifest as any)?.model || "").trim();
+    const modelKey =
+      requestedModel === "veo-3" || requestedModel === "veo-3-fast"
+        ? requestedModel
+        : "veo-3";
     let pred: any;
     try {
-      pred = await createPrediction(MODEL_VERSIONS["veo-3"], { prompt });
+      pred = await createPrediction(MODEL_VERSIONS[modelKey], { prompt });
     } catch (e) {
       await scheduleRetry(jobId, e);
       return;
@@ -1855,6 +2251,8 @@ async function handleVideoAssembleJob(
           key: null,
         });
       }
+      // Persist video_manifest used for this job
+      await insertVideoManifest({ job_id: jobId, manifest });
       await insertCost({
         jobId,
         provider: "replicate",

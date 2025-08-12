@@ -29,10 +29,11 @@ Status legend: [ ] not started, [~] in progress, [x] done, [!] blocked
 - [~] Orchestrator API (minimal viable endpoints)
   - [x] POST `/ingest/brand` (schema validated)
   - [x] Brand ingest persists to Postgres with versioning; added GET `/ingest/brand/latest` and `/ingest/brand/:id` (GUI loads latest on mount)
-  - [x] POST `/hooks/mine` (stub returns) and `/hooks/synthesize` (stub)
+  - [x] POST `/ingest/brief` (LLM -> brand_profile; schema validated; persisted)
+  - [x] POST `/hooks/mine` (stub returns) and `/hooks/synthesize` (brand-aware; risk flags persisted)
   - [x] POST `/scenes/plan` (schema validated for array or single item)
-  - [x] POST `/scenes/render` (Replicate call; response includes prediction_id, model_version, seed, duration; persisted)
-  - [x] POST `/videos/assemble` (Replicate call; audio.mode=none enforced; response includes prediction_id, model_version, duration; persisted)
+  - [x] POST `/scenes/render` (Replicate call; response includes prediction_id, model_version, seed, duration; persisted) and persist `scene_images` lines
+  - [x] POST `/videos/assemble` (Replicate call; audio modes per schema; response includes prediction_id, model_version, duration; persisted) and persist `video_manifest`
   - [x] SSE `/jobs/stream` (ping event)
   - [~] Request/response validation, correlation IDs, structured logs (pinoHttp with req ids; schemas enforced on key routes; responses include run_id)
   - [x] GET `/jobs/recent` and GET `/kpis/today` (DB-backed)
@@ -71,9 +72,10 @@ Acceptance (Week 1)
 ### Week 2 — Planning, synthesis, images, and review
 
 - [x] Hook mining and synthesis
-- [x] ScrapeCreators adapter with rate limits, pagination, retries, dedupe
+- [x] ScrapeCreators adapter with rate limits, pagination, retries, dedupe (TikTok + Instagram)
 - [x] Clustering/synthesis endpoint implemented with heuristic clustering, SSE steps (clustering → generating → persist → completed), lineage persisted, filters (approved, icp), server sort
 - [x] Corpus and synthesized hooks persisted with lineage
+  - [x] Corpus enriched with OCR/on-image text and meme markers
   - [x] Hooks GUI Milestone 3: Toolbar filters/search, Mine/Synthesize dialogs, SSE status chips, Approve/Edit Drawer, Plan Scenes handoff to `Scenes Plan` with prefilled JSON; Empty states and accessibility covered; tests added.
 - [~] Character & Scenes
   - [x] Character upload + profile persist; stability test (3 prompts) API; GUI compare and local seed lock
@@ -95,6 +97,7 @@ Acceptance (Week 2)
 ### Week 3 — Videos, audio modes, export, and hardening
 
 - [~] Videos assembly with audio controls
+  - [x] Veo model toggle (Veo 3 vs Veo 3 Fast) in GUI; plumbed to API; schema updated to accept `model` and API maps to pinned versions via env (`REPLICATE_VEO3_VERSION`, `REPLICATE_VEO3_FAST_VERSION`). Default is Fast.
 - [~] Manifest builder (drag scenes, transitions, motion)
   - [x] Manifest builder increment: simple Up/Down reorder controls for `order`
   - [x] Replace Up/Down with drag-and-drop for `order` in `apps/gui/src/pages/video-assemble.tsx`
@@ -116,6 +119,7 @@ Acceptance (Week 2)
   - [x] Minimal JWT middleware scaffold in API (non-dev, protects mutating routes); token field in GUI settings; attach Authorization header in protected fetches
   - [x] Verified protected GUI fetches use Authorization header for `/jobs/:id/decision`, `/jobs/:id/rerun`, `/jobs/:id/cancel`, `/scenes/*`, `/videos/*`
   - [x] Guardrails: max cost per batch, concurrency caps (numeric range validation; optimistic UI updates; dashboard reflects changes without reload)
+  - [x] Brand-lock feature flag: require saved brand before synth/plan/render/assemble
   - [~] Observability and QA
   - [ ] Logs/metrics/traces; alerting on error spikes
   - [~] E2E happy-path test; seed-lock rerun test; failure recovery test
@@ -136,6 +140,9 @@ Acceptance (Week 2)
 
 - [x] Beauty pass refinement (batch 1)
   - Impact: Base styles and tokens reaffirmed; subtle elevation on buttons; delayed accessible tooltips; table utilities for zebra + sticky header. Files: `apps/gui/src/styles/globals.css`, `apps/gui/src/components/ui/{Button,Tooltip,Input,Select,Textarea}.tsx`. Builds green (`npm run -ws typecheck && npm run -ws build`).
+
+- [x] Beauty pass refinement (batch 2) — Inter font + background texture + Scenes Plan card wrap
+  - Impact: Enabled Inter globally in `_app.tsx`; added subtle grid texture to app background in `globals.css`; wrapped `Scenes Plan` body in `Card` and removed nested main to tighten layout. Files: `apps/gui/src/pages/_app.tsx`, `apps/gui/src/styles/globals.css`, `apps/gui/src/pages/scenes-plan.tsx`. Builds green.
 
 - [x] Character page upload UX polish
   - Impact: On `apps/gui/src/pages/character.tsx`, replaced raw inputs with UI primitives; added clear `Choose images` secondary button and primary `Upload N selected`; submit now enabled after at least one image is uploaded (server-side schema validation still enforced). Removed duplicate seed lock checkbox; improved selects to use `Select` component. Builds green.

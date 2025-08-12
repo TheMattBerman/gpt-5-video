@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PageHeader from "../components/PageHeader";
+import { Card } from "../components/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
 import { fetchWithAuth } from "../lib/http";
@@ -164,7 +165,7 @@ export default function RendersPage() {
             </Link>
           </nav>
         </header>
-        <section className="rounded border bg-white p-4">
+        <Card>
           <div className="text-sm font-medium mb-2">Recent renders</div>
           {compareAUrl && compareBUrl && (
             <div className="mb-3 rounded border p-2">
@@ -601,14 +602,14 @@ export default function RendersPage() {
               )}
             </div>
           )}
-        </section>
+        </Card>
         {drawerJobId && (
           <div className="fixed inset-0 z-50 flex justify-end">
             <div
               className="absolute inset-0 bg-black/30"
               onClick={() => setDrawerJobId(null)}
             />
-            <div className="relative h-full w-full max-w-md bg-white shadow-xl border-l p-4 overflow-auto">
+            <div className="relative h-full w-full max-w-md bg-white/95 backdrop-blur shadow-xl border-l p-4 overflow-auto">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium">Job details</div>
                 <button

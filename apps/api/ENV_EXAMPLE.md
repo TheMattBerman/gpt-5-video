@@ -9,7 +9,10 @@ LOG_LEVEL=info
 
 # Replicate (required for /scenes/render and /videos/assemble)
 REPLICATE_API_TOKEN=
-# Model versions (override defaults)
+# Model versions (override defaults). For Veo 3 Fast, set one of:
+# REPLICATE_VEO3_VERSION=google/veo-3-fast@<version_id>
+# or pin separately:
+# REPLICATE_VEO3_FAST_VERSION=google/veo-3-fast@<version_id>
 REPLICATE_IDEOGRAM_CHARACTER_VERSION=
 REPLICATE_IMAGEN4_VERSION=
 REPLICATE_VEO3_VERSION=
@@ -21,6 +24,7 @@ OPENAI_LLM_MODEL=gpt-5
 
 # ScrapeCreators (optional, Week 2+)
 SCRAPECREATORS_API_KEY=
+SCRAPECREATORS_BASE_URL=https://api.scrapecreators.com
 
 # Postgres (docker-compose default)
 POSTGRES_URL=postgres://postgres:postgres@localhost:5432/gpt5video
@@ -33,6 +37,10 @@ S3_REGION=us-east-1
 S3_BUCKET=gpt5video
 # Public dev access URL (for constructing display links if needed)
 PUBLIC_ASSET_BASE=
+
+# Feature toggles / guardrails
+# When true, require a saved brand_profile before synth/plan/render/assemble
+ENFORCE_BRAND_LOCK=false
 ```
 
 Cloudflare R2 (dev) example

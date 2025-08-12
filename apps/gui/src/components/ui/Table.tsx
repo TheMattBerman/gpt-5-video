@@ -4,7 +4,12 @@ export function Table({
   className = "",
   ...props
 }: HTMLAttributes<HTMLTableElement>) {
-  return <table className={`table-base ${className}`} {...props} />;
+  return (
+    <table
+      className={`table-base rounded-md border bg-white/90 shadow-card ${className}`}
+      {...props}
+    />
+  );
 }
 
 export function THead({
@@ -12,7 +17,10 @@ export function THead({
   ...props
 }: HTMLAttributes<HTMLTableSectionElement>) {
   return (
-    <thead className={`sticky top-0 z-10 bg-white ${className}`} {...props} />
+    <thead
+      className={`sticky top-0 z-10 bg-white/90 backdrop-blur ${className}`}
+      {...props}
+    />
   );
 }
 

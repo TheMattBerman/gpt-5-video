@@ -138,7 +138,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </aside>
         )}
         <div>
-          <header className="sticky top-0 z-40 border-b bg-gradient-to-b from-white/90 to-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+          <header className="sticky top-0 z-40 border-b bg-gradient-to-b from-white/80 to-accent-50/60 backdrop-blur supports-[backdrop-filter]:bg-white/60">
             <div className="mx-auto max-w-content-5xl px-4 py-3 flex items-center justify-between gap-3">
               <div className="text-sm text-gray-900 font-medium flex items-center gap-2">
                 <span>{crumbs[0]}</span>

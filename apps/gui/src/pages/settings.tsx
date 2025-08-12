@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PageHeader from "../components/PageHeader";
+import { Card } from "../components/ui";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
 
@@ -85,7 +86,7 @@ export default function SettingsPage() {
             </Link>
           </nav>
         </header>
-        <section className="rounded border bg-white p-4 space-y-3">
+        <Card className="space-y-3">
           <div className="text-sm font-medium">Guardrails</div>
           {loading ? (
             <div className="text-sm text-gray-600">Loading…</div>
@@ -125,9 +126,9 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
-        </section>
+        </Card>
 
-        <section className="rounded border bg-white p-4 space-y-3">
+        <Card className="space-y-3">
           <div className="text-sm font-medium">Auth (JWT)</div>
           <div className="text-xs text-gray-600">
             When not in development, protected routes require a Bearer token.
@@ -173,7 +174,7 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </section>
+        </Card>
       </div>
     </main>
   );

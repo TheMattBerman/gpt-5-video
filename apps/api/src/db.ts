@@ -170,6 +170,53 @@ export async function ensureTables() {
       created_at timestamptz default now()
     );
   `);
+
+  // Scene specs (persist the planning blueprint lines)
+  await pool.query(`
+    create table if not exists scene_specs (
+      id bigserial primary key,
+      batch_id text not null,
+      scene_id text not null,
+      spec jsonb not null,
+      created_at timestamptz default now()
+    );
+  `);
+  await pool.query(
+    `create index if not exists idx_scene_specs_batch_id on scene_specs(batch_id);`,
+  );
+  await pool.query(
+    `create index if not exists idx_scene_specs_scene_id on scene_specs(scene_id);`,
+  );
+
+  // Scene images lines (structured contract per PRD 7.6)
+  await pool.query(`
+    create table if not exists scene_images (
+      id bigserial primary key,
+      scene_id text not null,
+      image_url text not null,
+      seed bigint,
+      model_version text,
+      params jsonb,
+      job_id text references jobs(id) on delete set null,
+      created_at timestamptz default now()
+    );
+  `);
+  await pool.query(
+    `create index if not exists idx_scene_images_scene_id on scene_images(scene_id);`,
+  );
+  await pool.query(
+    `create index if not exists idx_scene_images_job_id on scene_images(job_id);`,
+  );
+
+  // Video manifests (persist the exact manifest used)
+  await pool.query(`
+    create table if not exists video_manifests (
+      id bigserial primary key,
+      job_id text not null references jobs(id) on delete cascade,
+      manifest jsonb not null,
+      created_at timestamptz default now()
+    );
+  `);
 }
 
 export async function insertJob(job: {
@@ -749,6 +796,84 @@ export async function getLatestBrandProfile(brandKey?: string) {
     `select * from brands order by created_at desc limit 1`,
   );
   return rows[0] || null;
+}
+
+// --- Scene specs helpers ---
+export async function insertSceneSpecs(
+  batchId: string,
+  items: Array<{ scene_id: string } & Record<string, unknown>>,
+) {
+  if (!items?.length) return;
+  const sql = `insert into scene_specs (batch_id, scene_id, spec) values ${items
+    .map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`)
+    .join(", ")}`;
+  const values: any[] = [];
+  for (const it of items) {
+    values.push(batchId, it.scene_id, JSON.stringify(it));
+  }
+  await pool.query(sql, values);
+}
+
+export async function listSceneSpecs(params: {
+  batchId?: string;
+  sceneId?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const where: string[] = [];
+  const args: any[] = [];
+  if (params.batchId) {
+    args.push(params.batchId);
+    where.push(`batch_id = $${args.length}`);
+  }
+  if (params.sceneId) {
+    args.push(params.sceneId);
+    where.push(`scene_id = $${args.length}`);
+  }
+  const limit = Math.min(Math.max(1, Number(params.limit || 50)), 500);
+  const offset = Math.max(0, Number(params.offset || 0));
+  const whereSql = where.length ? `where ${where.join(" and ")}` : "";
+  const { rows } = await pool.query(
+    `select * from scene_specs ${whereSql} order by created_at desc limit $${args.push(
+      limit,
+    )} offset $${args.push(offset)}`,
+    args,
+  );
+  return rows;
+}
+
+// --- Scene images helpers ---
+export async function insertSceneImageLine(row: {
+  scene_id: string;
+  image_url: string;
+  seed?: number | null;
+  model_version?: string | null;
+  params?: Record<string, unknown> | null;
+  job_id?: string | null;
+}) {
+  await pool.query(
+    `insert into scene_images (scene_id, image_url, seed, model_version, params, job_id)
+     values ($1, $2, $3, $4, $5, $6)`,
+    [
+      row.scene_id,
+      row.image_url,
+      row.seed ?? null,
+      row.model_version ?? null,
+      row.params ? JSON.stringify(row.params) : null,
+      row.job_id || null,
+    ],
+  );
+}
+
+// --- Video manifests helpers ---
+export async function insertVideoManifest(row: {
+  job_id: string;
+  manifest: Record<string, unknown>;
+}) {
+  await pool.query(
+    `insert into video_manifests (job_id, manifest) values ($1, $2)`,
+    [row.job_id, JSON.stringify(row.manifest)],
+  );
 }
 
 export async function getBrandProfileById(id: string) {
