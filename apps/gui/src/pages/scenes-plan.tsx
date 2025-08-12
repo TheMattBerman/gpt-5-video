@@ -39,6 +39,7 @@ type FormState = {
   model: ModelKey;
   prompt: string;
   character_reference_image?: string;
+  character_id?: string;
   aspect_ratio: string;
   rendering_speed?: "Default" | "Fast" | "Slow";
   negative_prompt?: string;
@@ -53,6 +54,7 @@ const defaultForm: FormState = {
   model: "ideogram-character",
   prompt: "mascot in startup office, confident expression",
   character_reference_image: "https://example.com/mascot-headshot.png",
+  character_id: "",
   aspect_ratio: "9:16",
   rendering_speed: "Default",
   negative_prompt: "",
@@ -89,6 +91,9 @@ export default function ScenesPlanPage() {
   const [isValid, setIsValid] = useState<boolean>(true);
   const editorRef = useRef<any>(null);
   const [submitBusy, setSubmitBusy] = useState<boolean>(false);
+  const [characters, setCharacters] = useState<
+    Array<{ id: string; name?: string; image?: string }>
+  >([]);
 
   // Prefill from query param
   useEffect(() => {
@@ -106,6 +111,29 @@ export default function ScenesPlanPage() {
       }
     } catch {}
   }, [router.query]);
+
+  // Load character list for picker
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/character`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data.items) ? data.items : [];
+        const mapped = items.map((r: any) => {
+          const img = Array.isArray(r?.data?.reference_images)
+            ? r.data.reference_images[0]
+            : undefined;
+          return {
+            id: String(r.id),
+            name: String(r?.data?.name || r.id),
+            image: img,
+          };
+        });
+        setCharacters(mapped);
+      } catch {}
+    })();
+  }, [apiBase]);
 
   // Sync form -> scene -> json preview
   useEffect(() => {
@@ -483,25 +511,54 @@ export default function ScenesPlanPage() {
                         textarea
                         value={form.prompt}
                         onChange={(v) => setForm((f) => ({ ...f, prompt: v }))}
+                        helper="Describe subject, setting, action, camera, lighting, style. Use the hook as inspiration (not verbatim)."
                         error={fieldError(ajvErrors, "/model_inputs/prompt")}
                       />
                       {form.model === "ideogram-character" && (
                         <>
-                          <FieldText
-                            id="character_reference_image"
-                            label="Character reference image URL"
-                            value={form.character_reference_image || ""}
-                            onChange={(v) =>
-                              setForm((f) => ({
-                                ...f,
-                                character_reference_image: v,
-                              }))
-                            }
-                            error={fieldError(
-                              ajvErrors,
-                              "/model_inputs/character_reference_image",
-                            )}
-                          />
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-sm text-gray-700 mb-1">
+                                Character
+                              </label>
+                              <select
+                                id="character_id"
+                                className="rounded border px-2 py-1 text-sm w-full"
+                                value={form.character_id || ""}
+                                onChange={(e) =>
+                                  setForm((f) => ({
+                                    ...f,
+                                    character_id: e.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="">— Select —</option>
+                                {characters.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <div className="mt-1 text-xs text-gray-600">
+                                Or paste a reference image URL.
+                              </div>
+                            </div>
+                            <FieldText
+                              id="character_reference_image"
+                              label="Reference image URL"
+                              value={form.character_reference_image || ""}
+                              onChange={(v) =>
+                                setForm((f) => ({
+                                  ...f,
+                                  character_reference_image: v,
+                                }))
+                              }
+                              error={fieldError(
+                                ajvErrors,
+                                "/model_inputs/character_reference_image",
+                              )}
+                            />
+                          </div>
                           <div className="grid grid-cols-2 gap-3">
                             <FieldText
                               id="aspect_ratio"
@@ -873,6 +930,7 @@ function sceneFromForm(f: FormState): SceneSpec {
       aspect_ratio: f.aspect_ratio,
       rendering_speed: f.rendering_speed || "Default",
     };
+    if (f.character_id) (base as any).character_id = f.character_id;
   } else if (f.model === "imagen-4") {
     base.model_inputs = {
       prompt: f.prompt,
