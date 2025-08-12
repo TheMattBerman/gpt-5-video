@@ -21,6 +21,7 @@ export interface BrandProfile {
 
 // Schema: character_profile.schema.json
 export interface CharacterProfile {
+  name?: string;
   /**
    * @minItems 1
    */

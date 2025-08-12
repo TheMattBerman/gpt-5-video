@@ -94,6 +94,8 @@ export class ReplicateClient {
     ideogramCharacter: "ideogram-ai/ideogram-character@b7e4c4c1a1f2",
     imagen4: "google/imagen-4@9a0f0e0d1c2b",
     veo3: "google/veo-3@7f1a2b3c4d5e",
+    // Placeholder PaddleOCR model version; override with env in API
+    paddleOCR: "paddlepaddle/paddle-ocr@latest",
   } as const;
 
   async runIdeogramCharacter(
@@ -107,6 +109,15 @@ export class ReplicateClient {
   async runVeo3(
     input: Record<string, unknown>,
     version = ReplicateClient.defaultVersions.veo3,
+  ) {
+    const pred = await this.createPrediction(version, input);
+    return this.waitForPrediction(pred.id);
+  }
+
+  async runPaddleOCR(
+    input: Record<string, unknown>,
+    version = process.env.REPLICATE_PADDLEOCR_VERSION ||
+      ReplicateClient.defaultVersions.paddleOCR,
   ) {
     const pred = await this.createPrediction(version, input);
     return this.waitForPrediction(pred.id);

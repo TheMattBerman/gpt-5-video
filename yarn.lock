@@ -681,7 +681,7 @@
     react-dom "^18.3.1"
 
 "@gpt5video/replicate-client@file:../../packages/clients/replicate", "@gpt5video/replicate-client@file:/Users/matthewberman/Documents/Github/gpt-5-video/packages/clients/replicate":
-  version "0.1.0"
+  version "0.1.1"
   resolved "file:packages/clients/replicate"
 
 "@gpt5video/schemas@file:../../packages/schemas", "@gpt5video/schemas@file:/Users/matthewberman/Documents/Github/gpt-5-video/packages/schemas":

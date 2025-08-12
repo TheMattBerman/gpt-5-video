@@ -30,6 +30,7 @@ export default function CharacterPage() {
   const [uploaded, setUploaded] = useState<UploadedRef[]>([]);
   const [styleInput, setStyleInput] = useState<string>("");
   const [maskInput, setMaskInput] = useState<string>("");
+  const [name, setName] = useState<string>("");
   const [seedLocked, setSeedLocked] = useState<boolean>(false);
   const [winner, setWinner] = useState<{
     seed?: number | null;
@@ -94,6 +95,7 @@ export default function CharacterPage() {
 
   const validation = useMemo(() => {
     const candidate = {
+      name: name.trim() || undefined,
       reference_images: referenceImages,
       style_constraints: styleConstraints,
       mask_rules: maskRules,
@@ -105,7 +107,7 @@ export default function CharacterPage() {
           (e) => `${e.instancePath || "/"} ${e.message || "invalid"}`,
         );
     return { ok, errors: errs } as const;
-  }, [referenceImages, styleConstraints, maskRules, validate]);
+  }, [name, referenceImages, styleConstraints, maskRules, validate]);
 
   const handlePick = useCallback((fl: FileList | null) => {
     const arr = fl ? Array.from(fl) : [];
@@ -166,6 +168,7 @@ export default function CharacterPage() {
 
   async function submitProfile() {
     const body = {
+      name: name.trim() || undefined,
       reference_images: referenceImages,
       style_constraints: styleConstraints,
       mask_rules: maskRules,
@@ -314,8 +317,70 @@ export default function CharacterPage() {
           )}
         </section>
 
+        <section className="rounded border bg-white p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium">Saved Characters</div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${apiBase}/character`);
+                  const data = await res.json();
+                  if (!res.ok)
+                    throw new Error(String(data?.error || res.statusText));
+                  const items = Array.isArray(data?.items) ? data.items : [];
+                  if (!items.length) {
+                    show({
+                      title: "No saved characters yet",
+                      variant: "info" as any,
+                    });
+                    return;
+                  }
+                  const first = items[0];
+                  const d = (first?.data || {}) as any;
+                  setName(String(d?.name || ""));
+                  setStyleInput((d?.style_constraints || []).join(", "));
+                  setMaskInput((d?.mask_rules || []).join(", "));
+                  setUploaded(
+                    (Array.isArray(d?.reference_images)
+                      ? d.reference_images
+                      : []
+                    ).map((u: string, i: number) => ({
+                      key: `${first.id}:${i}`,
+                      previewUrl: u,
+                      contentType: "image/*",
+                    })),
+                  );
+                  show({ title: `Loaded ${first.id}`, variant: "success" });
+                } catch (e: any) {
+                  show({
+                    title: "Load failed",
+                    description: String(e?.message || e),
+                    variant: "error",
+                  });
+                }
+              }}
+            >
+              Load latest
+            </Button>
+          </div>
+          <div className="text-xs text-gray-600">
+            This loads the most recently saved character profile.
+          </div>
+        </section>
+
         <section className="rounded border bg-white p-4 grid grid-cols-2 gap-4">
           <div className="space-y-3">
+            <label className="block text-sm">
+              <span className="text-gray-700">Name (optional)</span>
+              <Input
+                className="mt-1"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Startup Mascot"
+              />
+            </label>
             <label className="block text-sm">
               <span className="text-gray-700">
                 Style constraints (comma-separated)

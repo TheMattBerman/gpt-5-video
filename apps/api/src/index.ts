@@ -283,6 +283,7 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
                 );
                 // Try to fetch transcript for a stronger first-line hook seed
                 let firstTransLine: string | undefined;
+                let onImageText: string | undefined;
                 try {
                   if (shareUrl) {
                     const info = await scGetTiktokVideo({
@@ -298,6 +299,38 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
                         transcript.split(/\n|[.!?]/)[0] || transcript;
                       firstTransLine = head.slice(0, 140).trim();
                     }
+                    // OCR: try to extract on-image text from the first frame URL if present
+                    const frameUrl = String(
+                      (info as any)?.aweme_detail?.video?.cover
+                        ?.url_list?.[0] ||
+                        (info as any)?.aweme_detail?.video?.origin_cover
+                          ?.url_list?.[0] ||
+                        "",
+                    );
+                    if (frameUrl && process.env.REPLICATE_API_TOKEN) {
+                      try {
+                        const rep = new ReplicateClient(
+                          process.env.REPLICATE_API_TOKEN,
+                        );
+                        const pred = await rep.runPaddleOCR({
+                          image: frameUrl,
+                          // model-specific keys vary; many accept 'image' or 'input'
+                        });
+                        const out = (pred?.output as any) || [];
+                        if (Array.isArray(out)) {
+                          const joined = out
+                            .map((o: any) =>
+                              typeof o?.text === "string" ? o.text : "",
+                            )
+                            .filter(Boolean)
+                            .join(" ")
+                            .trim();
+                          if (joined) onImageText = joined.slice(0, 140);
+                        } else if (typeof out === "string" && out.trim()) {
+                          onImageText = String(out).slice(0, 140);
+                        }
+                      } catch {}
+                    }
                   }
                 } catch {}
                 const views = Number(v?.statistics?.play_count || 0);
@@ -305,7 +338,8 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
                   platform: src.platform,
                   author,
                   url: shareUrl,
-                  caption_or_transcript: firstTransLine || caption,
+                  caption_or_transcript:
+                    onImageText || firstTransLine || caption,
                   detected_format: "", // can be post-processed later
                   metrics: {
                     views,
@@ -317,6 +351,7 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
                     request_id: (req as any).id || "",
                     page: 0,
                     first_transcript_line: firstTransLine || null,
+                    on_image_text: onImageText || null,
                   },
                   platform_post_id: String(
                     v?.aweme_id || v?.id || v?.id_str || "",
@@ -745,13 +780,47 @@ app.post("/character/profile", async (req: Request, res: Response) => {
       details: validateCharacter.errors,
     });
   }
-  const characterId = `character_${Date.now()}`;
+  const rawName = String((data as any)?.name || "").trim();
+  const slug = rawName
+    ? rawName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+    : "";
+  const characterId = slug ? `character_${slug}` : `character_${Date.now()}`;
   await insertCharacterProfile(characterId, data);
   res.json({
     character_id: characterId,
     run_id: (req as any).id || undefined,
     data,
   });
+});
+
+// List characters (latest 50)
+app.get("/character", async (_req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query(
+      `select id, data, created_at from characters order by created_at desc limit 50`,
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    res.status(500).json({ error: "characters_list_failed" });
+  }
+});
+
+// Get a character by id
+app.get("/character/:id", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { rows } = await pool.query(
+      `select id, data, created_at from characters where id = $1`,
+      [id],
+    );
+    if (!rows[0]) return res.status(404).json({ error: "not_found" });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "character_get_failed" });
+  }
 });
 
 app.post("/character/stability-test", async (req: Request, res: Response) => {

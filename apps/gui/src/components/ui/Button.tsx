@@ -19,7 +19,7 @@ const variants: Record<Variant, string> = {
     "bg-accent-600 text-white hover:bg-accent-700 focus-visible:ring-accent-600",
   // Stronger contrast on white surfaces; visible border and text color
   secondary:
-    "border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 active:bg-gray-100 focus-visible:ring-gray-400",
+    "border border-gray-400 bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200 focus-visible:ring-gray-400",
   // Keep ghost subtle but readable
   ghost: "text-gray-900 hover:bg-gray-100 active:bg-gray-200",
   danger: "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600",
