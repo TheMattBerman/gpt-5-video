@@ -1,7 +1,7 @@
 import Link from "next/link";
 import PageHeader from "../components/PageHeader";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "../components/ui";
+import { Badge, Button, Tooltip } from "../components/ui";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import sceneSpecsLineSchema from "../../../../packages/schemas/schemas/scene_specs_line.schema.json";
@@ -268,7 +268,10 @@ export default function ScenesRenderPage() {
           }
         />
         <nav className="flex gap-4 text-sm">
-          <Link className="text-blue-600 underline" href="/">
+          <Link
+            className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
+            href="/"
+          >
             Dashboard
           </Link>
         </nav>
@@ -301,26 +304,30 @@ export default function ScenesRenderPage() {
                 )}
               </div>
               <div className="mt-3 flex items-center gap-3">
-                <button
+                <Button
                   onClick={submit}
                   disabled={errors.length > 0}
-                  className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
+                  aria-label="Render"
                 >
                   Render
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => setText(JSON.stringify(exampleScene, null, 2))}
-                  className="rounded border px-3 py-1.5 text-sm"
+                  aria-label="Insert Ideogram preset"
                 >
                   Insert Ideogram preset
-                </button>
-                <button
-                  onClick={() => void queueBatch(15)}
-                  disabled={errors.length > 0}
-                  className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
-                >
-                  Queue 15 renders
-                </button>
+                </Button>
+                <Tooltip label="Queues 15 predictions with random seeds">
+                  <Button
+                    variant="secondary"
+                    onClick={() => void queueBatch(15)}
+                    disabled={errors.length > 0}
+                    aria-label="Queue 15 renders"
+                  >
+                    Queue 15 renders
+                  </Button>
+                </Tooltip>
               </div>
               {resp && (
                 <div className="mt-3 space-y-2 text-sm">

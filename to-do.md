@@ -124,11 +124,13 @@ Acceptance (Week 2)
 
 ### Stretch/Backlog — GUI polish and UX improvements
 
-- [ ] Apply `design.md` plan: tokens, `Layout`, `PageHeader`, UI primitives, onboarding, page upgrades
-  - [ ] Milestone 1: tokens + Layout + primitives; Dashboard + Renders upgrades; helper text; Playwright updates
-  - [~] Milestone 2: Scenes Plan/Render upgrades; validation UX — JSON/Form tabs, live Ajv mapping, sticky validation; Render header chips and filmstrip thumbs
+- [~] Apply `design.md` plan: tokens, `Layout`, `PageHeader`, UI primitives, onboarding, page upgrades
+  - [x] Milestone 1: tokens + Layout + primitives; Dashboard + Renders upgrades; helper text; Playwright updates
+  - [x] Milestone 2: Scenes Plan/Render upgrades; validation UX — JSON/Form tabs, live Ajv mapping, sticky validation; Render header chips and filmstrip thumbs
   - [x] Milestone 3: Hooks approval/filters UX — Completed. Impact: `apps/gui/src/pages/hooks.tsx`, `apps/gui/src/components/ui/{Chip,Tooltip,Table}.tsx`, `tests/e2e/hooks.spec.ts` (filters/search, Mine/Synthesize dialogs, SSE chips, Approve/Edit drawer, Plan Scenes handoff)
-  - [ ] Milestone 4: Video Assemble tabs; Review & Export polish; Quick tour
+  - [~] Milestone 4: Video Assemble tabs; Review & Export polish; Quick tour
+
+  Impact: App-wide tokens and focus-visible applied; `Layout` active nav and topbar badges; standardized `Badge`/`Button` usage across `scenes-plan.tsx`, `scenes-render.tsx`, `video-assemble.tsx`, `review-export.tsx`, and accent link styles on `index.tsx`. Builds green.
 
 Acceptance (Week 3)
 

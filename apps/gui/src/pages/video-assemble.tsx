@@ -8,6 +8,7 @@ import { ajv } from "@gpt5video/shared";
 import { addJob, updateJob } from "../lib/jobs";
 import { fetchWithAuth } from "../lib/http";
 import { useToast } from "../components/Toast";
+import { Badge, Button, Tabs, Tooltip } from "../components/ui";
 
 export default function VideoAssemblePage() {
   const apiBase = useMemo(
@@ -343,337 +344,413 @@ export default function VideoAssemblePage() {
         <PageHeader
           title="Video Assemble"
           description="Build a manifest via form or JSON. Audio modes: none, voiceover, dialogue."
-        />
-        <header className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Video Assemble</h1>
-          <nav className="flex gap-4 text-sm">
-            <Link className="text-blue-600 underline" href="/">
-              Dashboard
-            </Link>
-          </nav>
-        </header>
-        <section className="rounded border bg-white p-4">
-          <div className="mb-3 text-sm text-gray-700">
-            Build a manifest, validate, and submit. Audio modes supported.
-          </div>
-          <div className="mb-3 grid grid-cols-3 gap-3 text-sm">
-            <label>
-              <div className="text-gray-700">
-                Order (comma-separated scene_ids)
-              </div>
-              <input
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                value={order}
-                onChange={(e) => setOrder(e.target.value)}
-              />
-              {!!orderArray.length && (
-                <div className="mt-2 space-y-1">
-                  <div className="text-xs text-gray-600 mb-1">
-                    Drag to reorder
-                  </div>
-                  {orderArray.map((id, i) => (
-                    <div
-                      key={`${id}-${i}`}
-                      className={`flex items-center gap-2 rounded border px-2 py-1 ${dragIndex === i ? "bg-gray-100" : "bg-white"}`}
-                      draggable
-                      onDragStart={() => setDragIndex(i)}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        if (dragIndex === null || dragIndex === i) return;
-                        const next = [...orderArray];
-                        const [moved] = next.splice(dragIndex, 1);
-                        next.splice(i, 0, moved);
-                        setDragIndex(i);
-                        setOrder(next.join(", "));
-                      }}
-                      onDragEnd={() => setDragIndex(null)}
-                    >
-                      <span className="cursor-grab select-none">☰</span>
-                      <span className="font-mono flex-1">{id}</span>
-                    </div>
-                  ))}
-                </div>
+          actions={
+            <div className="flex items-center gap-2">
+              {resp?.data?.cost_estimate_usd != null && (
+                <Badge variant="warning">
+                  est ${Number(resp.data.cost_estimate_usd).toFixed(2)}
+                </Badge>
               )}
-            </label>
-            <label>
-              <div className="text-gray-700">Transitions</div>
-              <input
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                value={transitions}
-                onChange={(e) => setTransitions(e.target.value)}
-              />
-            </label>
-            <label>
-              <div className="text-gray-700">Motion</div>
-              <input
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                value={motion}
-                onChange={(e) => setMotion(e.target.value)}
-              />
-            </label>
-            <div className="col-span-3">
-              <div className="mt-4 rounded border p-3">
-                <div className="text-sm font-medium mb-2">Audio</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="text-sm">
-                    <div className="text-gray-700">Mode</div>
-                    <select
-                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                      value={audioMode}
-                      onChange={(e) => setAudioMode(e.target.value as any)}
-                    >
-                      <option value="none">none</option>
-                      <option value="voiceover">voiceover</option>
-                      <option value="dialogue">dialogue</option>
-                    </select>
-                  </label>
-                  <label className="text-sm">
-                    <div className="text-gray-700">Voice style</div>
-                    <input
-                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                      value={voiceStyle}
-                      onChange={(e) => setVoiceStyle(e.target.value)}
-                    />
-                  </label>
-                  <label className="text-sm">
-                    <div className="text-gray-700">Language</div>
-                    <input
-                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                      value={language}
-                      onChange={(e) => setLanguage(e.target.value)}
-                    />
-                  </label>
-                  <label className="text-sm">
-                    <div className="text-gray-700">Pace</div>
-                    <input
-                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                      value={pace}
-                      onChange={(e) => setPace(e.target.value)}
-                    />
-                  </label>
-                  <label className="text-sm">
-                    <div className="text-gray-700">Volume</div>
-                    <input
-                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                      value={volume}
-                      onChange={(e) => setVolume(e.target.value)}
-                    />
-                  </label>
-                </div>
-                {audioMode === "voiceover" && (
-                  <label className="mt-3 block text-sm">
-                    <div className="text-gray-700">Voiceover prompt</div>
-                    <textarea
-                      className="mt-1 h-24 w-full rounded border p-2 text-sm"
-                      value={voPrompt}
-                      onChange={(e) => setVoPrompt(e.target.value)}
-                      placeholder="Confident voiceover that says: ..."
-                    />
-                  </label>
+              {resp?.data?.cost_actual_usd != null &&
+                Number(resp.data.cost_actual_usd) > 0 && (
+                  <Badge variant="info">
+                    ${Number(resp.data.cost_actual_usd).toFixed(2)}
+                  </Badge>
                 )}
-                {audioMode === "dialogue" && (
-                  <div className="mt-3 space-y-2">
-                    <div className="text-sm">Dialogue timing</div>
-                    {dialogueTiming.map((d, i) => (
-                      <div key={i} className="grid grid-cols-4 gap-2">
-                        <input
-                          className="rounded border px-2 py-1 text-sm"
-                          placeholder="scene_id"
-                          value={d.scene_id}
-                          onChange={(e) =>
-                            setDialogueTiming((prev) =>
-                              prev.map((v, idx) =>
-                                idx === i
-                                  ? { ...v, scene_id: e.target.value }
-                                  : v,
-                              ),
-                            )
-                          }
-                        />
-                        <input
-                          className="rounded border px-2 py-1 text-sm"
-                          placeholder="time (s)"
-                          value={d.t}
-                          onChange={(e) =>
-                            setDialogueTiming((prev) =>
-                              prev.map((v, idx) =>
-                                idx === i
-                                  ? { ...v, t: Number(e.target.value) || 0 }
-                                  : v,
-                              ),
-                            )
-                          }
-                        />
-                        <input
-                          className="rounded border px-2 py-1 text-sm"
-                          placeholder="character"
-                          value={d.character}
-                          onChange={(e) =>
-                            setDialogueTiming((prev) =>
-                              prev.map((v, idx) =>
-                                idx === i
-                                  ? { ...v, character: e.target.value }
-                                  : v,
-                              ),
-                            )
-                          }
-                        />
-                        <input
-                          className="rounded border px-2 py-1 text-sm"
-                          placeholder="line"
-                          value={d.line}
-                          onChange={(e) =>
-                            setDialogueTiming((prev) =>
-                              prev.map((v, idx) =>
-                                idx === i ? { ...v, line: e.target.value } : v,
-                              ),
-                            )
-                          }
-                        />
-                      </div>
-                    ))}
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
-                      onClick={() =>
-                        setDialogueTiming((prev) => [
-                          ...prev,
-                          { scene_id: "", t: 0, character: "", line: "" },
-                        ])
-                      }
-                    >
-                      Add line
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
-            <div className="col-span-3">
-              <button
-                className="rounded border px-3 py-1.5 text-sm"
-                onClick={buildManifestFromForm}
-              >
-                Populate JSON
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <textarea
-              className="h-[420px] w-full resize-vertical rounded border p-2 font-mono text-xs"
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value);
-                debouncedValidateAndMaybeSync(e.target.value);
-              }}
-            />
-            <div className="flex flex-col">
-              <div className="text-sm font-medium">Validation</div>
-              <div className="mt-2 flex-1 overflow-auto rounded border bg-gray-50 p-2 text-xs">
-                {errors.length === 0 ? (
-                  <div className="text-green-700">Valid ✔︎</div>
-                ) : (
-                  <ul className="list-disc pl-4">
-                    {errors.map((e, i) => (
-                      <li key={i} className="text-red-700">
-                        {e}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="mt-3 flex items-center gap-3">
-                <button
-                  onClick={submit}
-                  disabled={errors.length > 0}
-                  className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
-                >
-                  Assemble
-                </button>
-              </div>
-              {(resp || jobDetail) && (
-                <div className="mt-3 space-y-2 text-sm">
-                  <div className="text-gray-700">
-                    prediction_id:{" "}
-                    <span className="font-mono">
-                      {jobDetail?.prediction_id || resp?.data?.prediction_id}
-                    </span>
-                  </div>
-                  <div className="text-gray-700">
-                    model_version:{" "}
-                    <span className="font-mono">
-                      {jobDetail?.model_version || resp?.data?.model_version}
-                    </span>
-                  </div>
-                  <div className="text-gray-700">
-                    duration_ms:{" "}
-                    <span className="font-mono">
-                      {String(
-                        jobDetail?.duration_ms ?? resp?.data?.duration_ms ?? "",
-                      )}
-                    </span>
-                  </div>
-                  <div className="text-gray-700">
-                    status:{" "}
-                    <span className="font-mono">
-                      {jobDetail?.status || resp.data?.status}
-                    </span>
-                  </div>
-                  <div className="text-gray-700">
-                    run_id:{" "}
-                    <span className="font-mono">
-                      {String(jobDetail?.run_id ?? resp.data?.run_id ?? "")}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {typeof jobDetail?.cost_estimate_usd === "number" && (
-                      <span className="rounded bg-yellow-50 px-1.5 py-0.5 text-yellow-800">
-                        Est ${Number(jobDetail.cost_estimate_usd).toFixed(2)}
-                      </span>
-                    )}
-                    {typeof jobDetail?.cost_actual_usd === "number" &&
-                      Number(jobDetail.cost_actual_usd) > 0 && (
-                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
-                          Actual ${Number(jobDetail.cost_actual_usd).toFixed(2)}
-                        </span>
-                      )}
-                  </div>
-                  {jobId && (
-                    <div className="mt-2">
-                      <div className="text-xs text-gray-600 mb-1">
-                        Live status
-                      </div>
-                      <div className="space-y-1 text-xs">
-                        {sseEvents.map((e, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="text-gray-500 w-28">
-                              {new Date(e.ts).toLocaleTimeString()}
-                            </span>
-                            {typeof e.attempt_count === "number" && (
-                              <span className="rounded bg-gray-100 px-1 py-0.5">
-                                #{e.attempt_count}
-                              </span>
-                            )}
-                            {e.step && (
-                              <span className="rounded bg-gray-50 px-1.5 py-0.5 text-gray-800">
-                                {e.step}
-                              </span>
-                            )}
-                            {e.status && (
-                              <span className="text-gray-600">{e.status}</span>
-                            )}
-                          </div>
-                        ))}
-                        {sseEvents.length === 0 && (
-                          <div className="text-gray-500">
-                            Waiting for events…
+          }
+        />
+        <nav className="flex gap-4 text-sm">
+          <Link
+            className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
+            href="/"
+          >
+            Dashboard
+          </Link>
+        </nav>
+        <section className="rounded border bg-white p-4">
+          <Tabs
+            defaultId="form"
+            tabs={[
+              {
+                id: "form",
+                label: "Form",
+                content: (
+                  <div>
+                    <div className="mb-3 grid grid-cols-3 gap-3 text-sm">
+                      <label>
+                        <div className="text-gray-700">
+                          Order (comma-separated scene_ids)
+                        </div>
+                        <input
+                          className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                          value={order}
+                          onChange={(e) => setOrder(e.target.value)}
+                        />
+                        {!!orderArray.length && (
+                          <div className="mt-2 space-y-1">
+                            <div className="text-xs text-gray-600 mb-1">
+                              Drag to reorder
+                            </div>
+                            {orderArray.map((id, i) => (
+                              <div
+                                key={`${id}-${i}`}
+                                className={`flex items-center gap-2 rounded border px-2 py-1 ${dragIndex === i ? "bg-gray-100" : "bg-white"}`}
+                                draggable
+                                onDragStart={() => setDragIndex(i)}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  if (dragIndex === null || dragIndex === i)
+                                    return;
+                                  const next = [...orderArray];
+                                  const [moved] = next.splice(dragIndex, 1);
+                                  next.splice(i, 0, moved);
+                                  setDragIndex(i);
+                                  setOrder(next.join(", "));
+                                }}
+                                onDragEnd={() => setDragIndex(null)}
+                              >
+                                <span
+                                  className="cursor-grab select-none"
+                                  aria-hidden
+                                >
+                                  ☰
+                                </span>
+                                <span className="font-mono flex-1">{id}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
+                      </label>
+                      <label>
+                        <div className="text-gray-700">Transitions</div>
+                        <input
+                          className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                          value={transitions}
+                          onChange={(e) => setTransitions(e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        <div className="text-gray-700">Motion</div>
+                        <input
+                          className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                          value={motion}
+                          onChange={(e) => setMotion(e.target.value)}
+                        />
+                      </label>
+                      <div className="col-span-3">
+                        <div className="mt-4 rounded border p-3">
+                          <div className="text-sm font-medium mb-2">Audio</div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <label className="text-sm">
+                              <div className="text-gray-700">Mode</div>
+                              <select
+                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                value={audioMode}
+                                onChange={(e) =>
+                                  setAudioMode(e.target.value as any)
+                                }
+                              >
+                                <option value="none">none</option>
+                                <option value="voiceover">voiceover</option>
+                                <option value="dialogue">dialogue</option>
+                              </select>
+                            </label>
+                            <label className="text-sm">
+                              <div className="text-gray-700">Voice style</div>
+                              <input
+                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                value={voiceStyle}
+                                onChange={(e) => setVoiceStyle(e.target.value)}
+                              />
+                            </label>
+                            <label className="text-sm">
+                              <div className="text-gray-700">Language</div>
+                              <input
+                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                value={language}
+                                onChange={(e) => setLanguage(e.target.value)}
+                              />
+                            </label>
+                            <label className="text-sm">
+                              <div className="text-gray-700">Pace</div>
+                              <input
+                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                value={pace}
+                                onChange={(e) => setPace(e.target.value)}
+                              />
+                            </label>
+                            <label className="text-sm">
+                              <div className="text-gray-700">Volume</div>
+                              <input
+                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                value={volume}
+                                onChange={(e) => setVolume(e.target.value)}
+                              />
+                            </label>
+                          </div>
+                          {audioMode === "voiceover" && (
+                            <label className="mt-3 block text-sm">
+                              <div className="text-gray-700">
+                                Voiceover prompt
+                              </div>
+                              <textarea
+                                className="mt-1 h-24 w-full rounded border p-2 text-sm"
+                                value={voPrompt}
+                                onChange={(e) => setVoPrompt(e.target.value)}
+                                placeholder="Confident voiceover that says: ..."
+                              />
+                              <div className="mt-1 text-xs text-gray-600">
+                                Required when audio mode is voiceover.
+                              </div>
+                            </label>
+                          )}
+                          {audioMode === "dialogue" && (
+                            <div className="mt-3 space-y-2">
+                              <div className="text-sm">Dialogue timing</div>
+                              {dialogueTiming.map((d, i) => (
+                                <div key={i} className="grid grid-cols-4 gap-2">
+                                  <input
+                                    className="rounded border px-2 py-1 text-sm"
+                                    placeholder="scene_id"
+                                    value={d.scene_id}
+                                    onChange={(e) =>
+                                      setDialogueTiming((prev) =>
+                                        prev.map((v, idx) =>
+                                          idx === i
+                                            ? { ...v, scene_id: e.target.value }
+                                            : v,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  <input
+                                    className="rounded border px-2 py-1 text-sm"
+                                    placeholder="time (s)"
+                                    value={d.t}
+                                    onChange={(e) =>
+                                      setDialogueTiming((prev) =>
+                                        prev.map((v, idx) =>
+                                          idx === i
+                                            ? {
+                                                ...v,
+                                                t: Number(e.target.value) || 0,
+                                              }
+                                            : v,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  <input
+                                    className="rounded border px-2 py-1 text-sm"
+                                    placeholder="character"
+                                    value={d.character}
+                                    onChange={(e) =>
+                                      setDialogueTiming((prev) =>
+                                        prev.map((v, idx) =>
+                                          idx === i
+                                            ? {
+                                                ...v,
+                                                character: e.target.value,
+                                              }
+                                            : v,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  <input
+                                    className="rounded border px-2 py-1 text-sm"
+                                    placeholder="line"
+                                    value={d.line}
+                                    onChange={(e) =>
+                                      setDialogueTiming((prev) =>
+                                        prev.map((v, idx) =>
+                                          idx === i
+                                            ? { ...v, line: e.target.value }
+                                            : v,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                </div>
+                              ))}
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() =>
+                                  setDialogueTiming((prev) => [
+                                    ...prev,
+                                    {
+                                      scene_id: "",
+                                      t: 0,
+                                      character: "",
+                                      line: "",
+                                    },
+                                  ])
+                                }
+                              >
+                                Add line
+                              </Button>
+                              <div className="mt-1 text-xs text-gray-600">
+                                Required mapping when audio mode is dialogue.
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="col-span-3">
+                        <Button
+                          variant="secondary"
+                          onClick={buildManifestFromForm}
+                          aria-label="Populate JSON"
+                        >
+                          Populate JSON
+                        </Button>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+                  </div>
+                ),
+              },
+              {
+                id: "json",
+                label: "JSON",
+                content: (
+                  <div className="grid grid-cols-2 gap-4">
+                    <textarea
+                      className="h-[420px] w-full resize-vertical rounded border p-2 font-mono text-xs"
+                      value={text}
+                      onChange={(e) => {
+                        setText(e.target.value);
+                        debouncedValidateAndMaybeSync(e.target.value);
+                      }}
+                    />
+                    <div className="flex flex-col">
+                      <div className="text-sm font-medium">Validation</div>
+                      <div className="mt-2 flex-1 overflow-auto rounded border bg-gray-50 p-2 text-xs">
+                        {errors.length === 0 ? (
+                          <div className="text-green-700">Valid ✔︎</div>
+                        ) : (
+                          <ul className="list-disc pl-4">
+                            {errors.map((e, i) => (
+                              <li key={i} className="text-red-700">
+                                {e}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="mt-3 flex items-center gap-3">
+                        <Button
+                          onClick={submit}
+                          disabled={errors.length > 0}
+                          aria-label="Assemble"
+                        >
+                          Assemble
+                        </Button>
+                      </div>
+                      {(resp || jobDetail) && (
+                        <div className="mt-3 space-y-2 text-sm">
+                          <div className="text-gray-700">
+                            prediction_id:{" "}
+                            <span className="font-mono">
+                              {jobDetail?.prediction_id ||
+                                resp?.data?.prediction_id}
+                            </span>
+                          </div>
+                          <div className="text-gray-700">
+                            model_version:{" "}
+                            <span className="font-mono">
+                              {jobDetail?.model_version ||
+                                resp?.data?.model_version}
+                            </span>
+                          </div>
+                          <div className="text-gray-700">
+                            duration_ms:{" "}
+                            <span className="font-mono">
+                              {String(
+                                jobDetail?.duration_ms ??
+                                  resp?.data?.duration_ms ??
+                                  "",
+                              )}
+                            </span>
+                          </div>
+                          <div className="text-gray-700">
+                            status:{" "}
+                            <span className="font-mono">
+                              {jobDetail?.status || resp.data?.status}
+                            </span>
+                          </div>
+                          <div className="text-gray-700">
+                            run_id:{" "}
+                            <span className="font-mono">
+                              {String(
+                                jobDetail?.run_id ?? resp.data?.run_id ?? "",
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {typeof jobDetail?.cost_estimate_usd ===
+                              "number" && (
+                              <Badge variant="warning">
+                                Est $
+                                {Number(jobDetail.cost_estimate_usd).toFixed(2)}
+                              </Badge>
+                            )}
+                            {typeof jobDetail?.cost_actual_usd === "number" &&
+                              Number(jobDetail.cost_actual_usd) > 0 && (
+                                <Badge variant="info">
+                                  Actual $
+                                  {Number(jobDetail.cost_actual_usd).toFixed(2)}
+                                </Badge>
+                              )}
+                          </div>
+                          {jobId && (
+                            <div className="mt-2">
+                              <div className="text-xs text-gray-600 mb-1">
+                                Live status
+                              </div>
+                              <div className="space-y-1 text-xs">
+                                {sseEvents.map((e, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <span className="text-gray-500 w-28">
+                                      {new Date(e.ts).toLocaleTimeString()}
+                                    </span>
+                                    {typeof e.attempt_count === "number" && (
+                                      <span className="rounded bg-gray-100 px-1 py-0.5">
+                                        #{e.attempt_count}
+                                      </span>
+                                    )}
+                                    {e.step && (
+                                      <span className="rounded bg-gray-50 px-1.5 py-0.5 text-gray-800">
+                                        {e.step}
+                                      </span>
+                                    )}
+                                    {e.status && (
+                                      <span className="text-gray-600">
+                                        {e.status}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                                {sseEvents.length === 0 && (
+                                  <div className="text-gray-500">
+                                    Waiting for events…
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ),
+              },
+            ]}
+          />
         </section>
         {!!outputs.length && (
           <section className="rounded border bg-white p-4">

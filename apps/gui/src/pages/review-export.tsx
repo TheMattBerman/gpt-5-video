@@ -3,6 +3,7 @@ import PageHeader from "../components/PageHeader";
 import { useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
 import { fetchWithAuth } from "../lib/http";
+import { Button, Tooltip } from "../components/ui";
 
 export default function ReviewExportPage() {
   const apiBase = useMemo(
@@ -49,14 +50,14 @@ export default function ReviewExportPage() {
           title="Review & Export"
           description="Run the checklist, pick an aspect preset, copy or open S3 keys, and download the CSV report."
         />
-        <header className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Review & Export</h1>
-          <nav className="flex gap-4 text-sm">
-            <Link className="text-blue-600 underline" href="/">
-              Dashboard
-            </Link>
-          </nav>
-        </header>
+        <nav className="flex gap-4 text-sm">
+          <Link
+            className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
+            href="/"
+          >
+            Dashboard
+          </Link>
+        </nav>
         <section className="rounded border bg-white p-4">
           <div className="text-sm font-medium mb-2">Checklist</div>
           <div className="space-y-2 text-sm">
@@ -96,24 +97,27 @@ export default function ReviewExportPage() {
         <section className="rounded border bg-white p-4">
           <div className="text-sm font-medium mb-2">Export presets</div>
           <div className="grid grid-cols-3 gap-3 text-sm">
-            <button
-              className={`rounded border px-3 py-1.5 ${preset === "9:16" ? "bg-gray-100" : ""}`}
+            <Button
+              variant={preset === "9:16" ? "primary" : "secondary"}
               onClick={() => applyPreset("9:16")}
+              aria-label="Preset 9 by 16"
             >
               9:16
-            </button>
-            <button
-              className={`rounded border px-3 py-1.5 ${preset === "1:1" ? "bg-gray-100" : ""}`}
+            </Button>
+            <Button
+              variant={preset === "1:1" ? "primary" : "secondary"}
               onClick={() => applyPreset("1:1")}
+              aria-label="Preset 1 by 1"
             >
               1:1
-            </button>
-            <button
-              className={`rounded border px-3 py-1.5 ${preset === "16:9" ? "bg-gray-100" : ""}`}
+            </Button>
+            <Button
+              variant={preset === "16:9" ? "primary" : "secondary"}
               onClick={() => applyPreset("16:9")}
+              aria-label="Preset 16 by 9"
             >
               16:9
-            </button>
+            </Button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <label>
@@ -136,17 +140,19 @@ export default function ReviewExportPage() {
               </div>
             </label>
             <div className="flex items-end">
-              <button
+              <Button
+                variant="secondary"
                 onClick={handlePreview}
-                className="rounded border px-3 py-1.5 text-sm"
+                aria-label="Preview from S3"
               >
                 Preview from S3
-              </button>
+              </Button>
             </div>
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs">
-            <button
-              className="rounded border px-2 py-1"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(s3Key);
@@ -161,15 +167,18 @@ export default function ReviewExportPage() {
               }}
             >
               Copy S3 key
-            </button>
-            <a
-              className="rounded border px-2 py-1 underline"
-              href={`${apiBase}/uploads/debug-get?key=${encodeURIComponent(s3Key)}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open (signed)
-            </a>
+            </Button>
+            <Tooltip label="Opens a signed URL to the asset">
+              <a
+                className="rounded border px-2 py-1 underline"
+                href={`${apiBase}/uploads/debug-get?key=${encodeURIComponent(s3Key)}`}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open signed URL"
+              >
+                Open (signed)
+              </a>
+            </Tooltip>
           </div>
           {previewUrl && (
             <div className="mt-3">

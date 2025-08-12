@@ -10,6 +10,7 @@ import { fetchWithAuth } from "../lib/http";
 import sceneSpecsLineSchema from "../../../../packages/schemas/schemas/scene_specs_line.schema.json";
 import {
   Badge,
+  Button,
   Card,
   CardContent,
   CardHeader,
@@ -261,19 +262,18 @@ export default function ScenesPlanPage() {
           actions={
             <div className="flex items-center gap-2 text-xs">
               {isValid ? (
-                <Badge className="bg-green-50 text-green-800 border border-green-200">
-                  Valid
-                </Badge>
+                <Badge variant="success">Valid</Badge>
               ) : (
-                <Badge className="bg-red-50 text-red-800 border border-red-200">
-                  Invalid
-                </Badge>
+                <Badge variant="error">Invalid</Badge>
               )}
             </div>
           }
         />
         <nav className="flex gap-4 text-sm">
-          <Link className="text-blue-600 underline" href="/">
+          <Link
+            className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
+            href="/"
+          >
             Dashboard
           </Link>
         </nav>
@@ -326,44 +326,47 @@ export default function ScenesPlanPage() {
                         />
                       )}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
+                        <Button
                           onClick={submit}
                           disabled={!isValid || submitBusy}
-                          className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
-                          aria-disabled={!isValid || submitBusy}
+                          aria-label="Submit plan"
                         >
                           Submit Plan
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="secondary"
                           onClick={formatJson}
-                          className="rounded border px-3 py-1.5 text-sm"
+                          aria-label="Format JSON"
                         >
                           Format JSON
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="secondary"
                           onClick={() => {
                             setOriginalText(jsonText);
                             insertTemplate("ideogram");
                           }}
-                          className="rounded border px-3 py-1.5 text-sm"
+                          aria-label="Insert Ideogram template"
                         >
                           Insert Ideogram template
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="secondary"
                           onClick={() => {
                             setOriginalText(jsonText);
                             insertTemplate("imagen4");
                           }}
-                          className="rounded border px-3 py-1.5 text-sm"
+                          aria-label="Insert Imagen 4 template"
                         >
                           Insert Imagen 4 template
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="secondary"
                           onClick={() => setShowDiff((v) => !v)}
-                          className="rounded border px-3 py-1.5 text-sm"
+                          aria-label={showDiff ? "Hide diff" : "Show diff"}
                         >
                           {showDiff ? "Hide diff" : "Show diff"}
-                        </button>
+                        </Button>
                       </div>
                       <Card className="mt-4">
                         <CardHeader>
@@ -647,21 +650,22 @@ export default function ScenesPlanPage() {
                         </CardContent>
                       </Card>
                       <div className="pt-2 flex items-center gap-2">
-                        <button
+                        <Button
                           onClick={submit}
                           disabled={!isValid || submitBusy}
-                          className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
-                          aria-disabled={!isValid || submitBusy}
+                          aria-label="Submit plan"
                         >
                           Submit Plan
-                        </button>
+                        </Button>
                         {!isValid && (
-                          <button
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             onClick={jumpToFirstError}
-                            className="rounded border px-2 py-1 text-xs"
+                            aria-label="Jump to first error"
                           >
                             Jump to first error
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </div>

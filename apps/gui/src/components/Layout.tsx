@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ReactNode, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
+import { Badge } from "./ui";
 
 const NAV_ITEMS: Array<{ href: string; label: string }> = [
   { href: "/", label: "Dashboard" },
@@ -15,6 +17,7 @@ const NAV_ITEMS: Array<{ href: string; label: string }> = [
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
     [],
@@ -28,8 +31,7 @@ export function Layout({ children }: { children: ReactNode }) {
   // Lightweight SSE status
   useEffect(() => {
     const es = new EventSource(`${apiBase}/jobs/stream`);
-    const onPing = (ev: MessageEvent) =>
-      setSseStatus((ev as MessageEvent).data as string);
+    const onPing = () => setSseStatus("connected");
     es.addEventListener("ping", onPing as any);
     es.onerror = () => setSseStatus("disconnected");
     return () => {
@@ -69,33 +71,42 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="text-sm font-semibold">GPT-5 Video</div>
           </div>
           <nav className="px-2 pb-4 space-y-1 text-sm">
-            {NAV_ITEMS.map((it) => (
-              <Link
-                key={it.href}
-                href={it.href}
-                className="block rounded-md px-3 py-2 hover:bg-gray-50"
-              >
-                {it.label}
-              </Link>
-            ))}
+            {NAV_ITEMS.map((it) => {
+              const active = router.pathname === it.href;
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`block rounded-md px-3 py-2 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-accent-600 ${active ? "bg-accent-50 text-accent-700" : "text-gray-700"}`}
+                >
+                  {it.label}
+                </Link>
+              );
+            })}
           </nav>
         </aside>
         <div>
           <header className="sticky top-0 z-40 border-b bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
             <div className="mx-auto max-w-content-5xl px-4 py-3 flex items-center justify-between gap-3">
-              <div className="text-sm text-gray-700">
-                SSE status: <span className="font-mono">{sseStatus}</span>
+              <div className="text-sm text-gray-700 flex items-center gap-2">
+                <span className="text-gray-600">SSE</span>
+                {sseStatus === "connected" ? (
+                  <Badge variant="info">connected</Badge>
+                ) : sseStatus === "disconnected" ? (
+                  <Badge variant="error">disconnected</Badge>
+                ) : (
+                  <Badge variant="default">connecting…</Badge>
+                )}
               </div>
               <div className="flex items-center gap-2 text-xs">
                 {guardrails ? (
-                  <span className="badge bg-yellow-50 text-yellow-800 border border-yellow-200">
+                  <Badge variant="warning">
                     conc {guardrails.max_concurrency} · max $
                     {guardrails.max_cost_per_batch_usd.toFixed(2)}
-                  </span>
+                  </Badge>
                 ) : (
-                  <span className="badge bg-gray-100 text-gray-700 border border-gray-200">
-                    guardrails --
-                  </span>
+                  <Badge variant="default">guardrails --</Badge>
                 )}
               </div>
             </div>

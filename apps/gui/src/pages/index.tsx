@@ -265,23 +265,32 @@ export default function Home() {
           <CardContent>
             <ol className="list-decimal pl-5 text-sm space-y-1">
               <li>
-                <Link className="text-accent-700 underline" href="/brand">
+                <Link
+                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
+                  href="/brand"
+                >
                   Brand
                 </Link>
               </li>
               <li>
-                <Link className="text-accent-700 underline" href="/hooks">
+                <Link
+                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
+                  href="/hooks"
+                >
                   Hooks
                 </Link>
               </li>
               <li>
-                <Link className="text-accent-700 underline" href="/scenes-plan">
+                <Link
+                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
+                  href="/scenes-plan"
+                >
                   Scenes
                 </Link>
               </li>
               <li>
                 <Link
-                  className="text-accent-700 underline"
+                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
                   href="/scenes-render"
                 >
                   Renders
@@ -289,7 +298,7 @@ export default function Home() {
               </li>
               <li>
                 <Link
-                  className="text-accent-700 underline"
+                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
                   href="/video-assemble"
                 >
                   Video
@@ -297,7 +306,7 @@ export default function Home() {
               </li>
               <li>
                 <Link
-                  className="text-accent-700 underline"
+                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
                   href="/review-export"
                 >
                   Review
