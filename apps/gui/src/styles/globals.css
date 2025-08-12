@@ -1,1 +1,44 @@
 @import "tailwindcss";
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-neutral-50 text-neutral-700 font-sans antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply text-neutral-900;
+  }
+  a {
+    @apply underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 rounded;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-gray-400 ring-offset-2;
+  }
+}
+
+/* Table primitives used by ui/Table.tsx */
+@layer components {
+  .table-base {
+    @apply w-full text-sm border-separate border-spacing-0;
+  }
+  .table-head-cell {
+    @apply sticky top-0 z-10 bg-white px-2 py-1 text-left text-gray-600 font-medium border-b;
+  }
+  .table-cell {
+    @apply px-2 py-1 align-top border-t;
+  }
+}
+
+/* Zebra rows */
+@layer utilities {
+  .table-base tbody tr:nth-child(odd) td {
+    @apply bg-gray-50;
+  }
+}

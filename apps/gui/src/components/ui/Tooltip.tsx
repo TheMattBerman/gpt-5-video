@@ -13,6 +13,9 @@ export default function Tooltip({
   ...props
 }: TooltipProps) {
   const [open, setOpen] = useState(false);
+  const [delayTimer, setDelayTimer] = useState<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -23,13 +26,24 @@ export default function Tooltip({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+  useEffect(() => {
+    return () => {
+      if (delayTimer) clearTimeout(delayTimer);
+    };
+  }, [delayTimer]);
 
   return (
     <div
       ref={ref}
       className={`relative inline-flex ${className}`}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseEnter={() => {
+        if (delayTimer) clearTimeout(delayTimer);
+        setDelayTimer(setTimeout(() => setOpen(true), 200));
+      }}
+      onMouseLeave={() => {
+        if (delayTimer) clearTimeout(delayTimer);
+        setDelayTimer(setTimeout(() => setOpen(false), 100));
+      }}
       onFocus={() => setOpen(true)}
       onBlur={() => setOpen(false)}
       {...props}

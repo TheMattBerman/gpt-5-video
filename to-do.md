@@ -133,6 +133,9 @@ Acceptance (Week 2)
   Impact: App-wide tokens refined; `Layout` topbar gradient + SSE/guardrail chips; sidebar icons; sticky Tabs; zebra Tables; compact inputs; updated pages: `apps/gui/src/pages/{index.tsx,scenes-plan.tsx,scenes-render.tsx,video-assemble.tsx,review-export.tsx}`; components: `apps/gui/src/components/ui/{Button,Input,Select,Textarea,Tabs,Table,Card,Tooltip}.tsx`; tokens: `apps/gui/tailwind.config.ts`. Builds green.
   - Impact (Phase 3 additions): Presentation mode toggle and breadcrumbs in `apps/gui/src/components/Layout.tsx`; Quick tour component and page wiring `apps/gui/src/components/QuickTour.tsx`, used in `index.tsx`, `hooks.tsx`, `scenes-render.tsx`, `video-assemble.tsx`, `review-export.tsx`; SegmentedControl added `apps/gui/src/components/ui/SegmentedControl.tsx` and used for audio mode, rendering speed, and export presets; share route stub `apps/gui/src/pages/share/[id].tsx`. Builds green.
 
+- [x] Beauty pass refinement (batch 1)
+  - Impact: Base styles and tokens reaffirmed; subtle elevation on buttons; delayed accessible tooltips; table utilities for zebra + sticky header. Files: `apps/gui/src/styles/globals.css`, `apps/gui/src/components/ui/{Button,Tooltip,Input,Select,Textarea}.tsx`. Builds green (`npm run -ws typecheck && npm run -ws build`).
+
 Acceptance (Week 3)
 
 - [ ] 5 video drafts created with audio in both voiceover and dialogue modes when enabled; export flows work; GUI reflects job state changes within 3s.

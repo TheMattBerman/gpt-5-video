@@ -9,7 +9,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  "inline-flex items-center justify-center rounded-sm font-medium transition-colors duration-200 ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50";
+  "inline-flex items-center justify-center rounded-sm font-medium transition-colors duration-200 ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 shadow-sm hover:shadow-card";
 const sizes: Record<Size, string> = {
   sm: "text-xs px-2.5 py-1.5",
   md: "text-sm px-3 py-1.5",
