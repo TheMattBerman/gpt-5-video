@@ -263,55 +263,33 @@ export default function Home() {
             <CardTitle>Getting Started</CardTitle>
           </CardHeader>
           <CardContent>
-            <ol className="list-decimal pl-5 text-sm space-y-1">
-              <li>
-                <Link
-                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
-                  href="/brand"
-                >
-                  Brand
-                </Link>
-              </li>
-              <li>
-                <Link
-                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
-                  href="/hooks"
-                >
-                  Hooks
-                </Link>
-              </li>
-              <li>
-                <Link
-                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
-                  href="/scenes-plan"
-                >
-                  Scenes
-                </Link>
-              </li>
-              <li>
-                <Link
-                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
-                  href="/scenes-render"
-                >
-                  Renders
-                </Link>
-              </li>
-              <li>
-                <Link
-                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
-                  href="/video-assemble"
-                >
-                  Video
-                </Link>
-              </li>
-              <li>
-                <Link
-                  className="text-accent-700 underline focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 rounded outline-none"
-                  href="/review-export"
-                >
-                  Review
-                </Link>
-              </li>
+            <ol className="grid grid-cols-2 gap-3 text-sm">
+              {[
+                { href: "/settings", icon: "🔑", label: "Settings: API Token" },
+                { href: "/hooks", icon: "🧲", label: "Hooks" },
+                { href: "/scenes-plan", icon: "📝", label: "Scenes Plan" },
+                { href: "/scenes-render", icon: "⏱️", label: "Scenes Render" },
+                {
+                  href: "/video-assemble",
+                  icon: "🎬",
+                  label: "Video Assemble",
+                },
+                {
+                  href: "/review-export",
+                  icon: "📤",
+                  label: "Review & Export",
+                },
+              ].map((it) => (
+                <li key={it.href}>
+                  <Link
+                    className="flex items-center gap-2 rounded-md border p-2 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 outline-none"
+                    href={it.href}
+                  >
+                    <span aria-hidden>{it.icon}</span>
+                    <span>{it.label}</span>
+                  </Link>
+                </li>
+              ))}
             </ol>
           </CardContent>
         </Card>

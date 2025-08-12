@@ -12,7 +12,10 @@ export function THead({
   ...props
 }: HTMLAttributes<HTMLTableSectionElement>) {
   return (
-    <thead className={`text-left text-gray-600 ${className}`} {...props} />
+    <thead
+      className={`sticky top-0 z-10 bg-white text-left text-gray-600 ${className}`}
+      {...props}
+    />
   );
 }
 
@@ -27,14 +30,16 @@ export function TH({
   className = "",
   ...props
 }: ThHTMLAttributes<HTMLTableCellElement>) {
-  return <th className={`px-2 py-1 ${className}`} {...props} />;
+  return (
+    <th className={`px-2 py-1 border-b bg-white ${className}`} {...props} />
+  );
 }
 
 export function TD({
   className = "",
   ...props
 }: TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={`px-2 py-1 ${className}`} {...props} />;
+  return <td className={`px-2 py-1 odd:bg-gray-50 ${className}`} {...props} />;
 }
 
 export default Table;

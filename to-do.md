@@ -128,9 +128,9 @@ Acceptance (Week 2)
   - [x] Milestone 1: tokens + Layout + primitives; Dashboard + Renders upgrades; helper text; Playwright updates
   - [x] Milestone 2: Scenes Plan/Render upgrades; validation UX — JSON/Form tabs, live Ajv mapping, sticky validation; Render header chips and filmstrip thumbs
   - [x] Milestone 3: Hooks approval/filters UX — Completed. Impact: `apps/gui/src/pages/hooks.tsx`, `apps/gui/src/components/ui/{Chip,Tooltip,Table}.tsx`, `tests/e2e/hooks.spec.ts` (filters/search, Mine/Synthesize dialogs, SSE chips, Approve/Edit drawer, Plan Scenes handoff)
-  - [~] Milestone 4: Video Assemble tabs; Review & Export polish; Quick tour
+  - [~] Milestone 4: Video Assemble tabs; Review & Export polish; Quick tour — Phase 2 UI tokens + components refined (Button variants incl. danger; Input/Select/Textarea states; Tabs sticky + a11y; Card/Table zebra + sticky header; Tooltip focus) and page polish (sidebar icons, topbar gradient with SSE/guardrail chips, Dashboard Getting Started grid, Scenes Plan sticky tabs, Scenes Render tooltips, Video Assemble sticky tabs, Review preset suffix microcopy)
 
-  Impact: App-wide tokens and focus-visible applied; `Layout` active nav and topbar badges; standardized `Badge`/`Button` usage across `scenes-plan.tsx`, `scenes-render.tsx`, `video-assemble.tsx`, `review-export.tsx`, and accent link styles on `index.tsx`. Builds green.
+  Impact: App-wide tokens refined; `Layout` topbar gradient + SSE/guardrail chips; sidebar icons; sticky Tabs; zebra Tables; compact inputs; updated pages: `apps/gui/src/pages/{index.tsx,scenes-plan.tsx,scenes-render.tsx,video-assemble.tsx,review-export.tsx}`; components: `apps/gui/src/components/ui/{Button,Input,Select,Textarea,Tabs,Table,Card,Tooltip}.tsx`; tokens: `apps/gui/tailwind.config.ts`. Builds green.
 
 Acceptance (Week 3)
 

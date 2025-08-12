@@ -370,6 +370,7 @@ export default function VideoAssemblePage() {
         </nav>
         <section className="rounded border bg-white p-4">
           <Tabs
+            sticky
             defaultId="form"
             tabs={[
               {

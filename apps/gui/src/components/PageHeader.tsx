@@ -15,7 +15,9 @@ export default function PageHeader({
     <div className="mb-4 md:mb-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold leading-tight">{title}</h1>
+          <h1 className="text-2xl font-semibold leading-tight text-gray-900">
+            {title}
+          </h1>
           {description && (
             <p className="mt-1 text-sm text-gray-600 max-w-prose">
               {description}

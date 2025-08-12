@@ -30,6 +30,8 @@ export default function Tooltip({
       className={`relative inline-flex ${className}`}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
       {...props}
     >
       {children}

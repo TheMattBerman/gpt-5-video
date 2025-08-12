@@ -25,7 +25,12 @@ export function CardTitle({
   className = "",
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={`text-sm font-medium ${className}`} {...props} />;
+  return (
+    <div
+      className={`text-sm font-semibold text-gray-900 ${className}`}
+      {...props}
+    />
+  );
 }
 
 export function CardContent({

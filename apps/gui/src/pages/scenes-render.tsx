@@ -311,13 +311,17 @@ export default function ScenesRenderPage() {
                 >
                   Render
                 </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => setText(JSON.stringify(exampleScene, null, 2))}
-                  aria-label="Insert Ideogram preset"
-                >
-                  Insert Ideogram preset
-                </Button>
+                <Tooltip label="Insert an example spec for Ideogram Character">
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      setText(JSON.stringify(exampleScene, null, 2))
+                    }
+                    aria-label="Insert Ideogram preset"
+                  >
+                    Insert preset
+                  </Button>
+                </Tooltip>
                 <Tooltip label="Queues 15 predictions with random seeds">
                   <Button
                     variant="secondary"

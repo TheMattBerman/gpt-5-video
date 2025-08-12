@@ -279,6 +279,7 @@ export default function ScenesPlanPage() {
         </nav>
         <section className="rounded border bg-white p-4">
           <Tabs
+            sticky
             tabs={[
               {
                 id: "json",

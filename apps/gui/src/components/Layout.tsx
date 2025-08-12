@@ -3,17 +3,17 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { Badge } from "./ui";
 
-const NAV_ITEMS: Array<{ href: string; label: string }> = [
-  { href: "/", label: "Dashboard" },
-  { href: "/brand", label: "Brand" },
-  { href: "/hooks", label: "Hooks" },
-  { href: "/character", label: "Character" },
-  { href: "/scenes-plan", label: "Scenes" },
-  { href: "/scenes-render", label: "Renders Queue" },
-  { href: "/renders", label: "Renders" },
-  { href: "/video-assemble", label: "Video" },
-  { href: "/review-export", label: "Review & Export" },
-  { href: "/settings", label: "Settings" },
+const NAV_ITEMS: Array<{ href: string; label: string; icon: string }> = [
+  { href: "/", label: "Dashboard", icon: "🏠" },
+  { href: "/brand", label: "Brand", icon: "🏷️" },
+  { href: "/hooks", label: "Hooks", icon: "🧲" },
+  { href: "/character", label: "Character", icon: "👤" },
+  { href: "/scenes-plan", label: "Scenes", icon: "📝" },
+  { href: "/scenes-render", label: "Renders Queue", icon: "⏱️" },
+  { href: "/renders", label: "Renders", icon: "🖼️" },
+  { href: "/video-assemble", label: "Video", icon: "🎬" },
+  { href: "/review-export", label: "Review & Export", icon: "📤" },
+  { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -78,28 +78,32 @@ export function Layout({ children }: { children: ReactNode }) {
                   key={it.href}
                   href={it.href}
                   aria-current={active ? "page" : undefined}
-                  className={`block rounded-md px-3 py-2 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-accent-600 ${active ? "bg-accent-50 text-accent-700" : "text-gray-700"}`}
+                  className={`flex items-center gap-2 rounded-md px-3 py-2 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-accent-600 ${active ? "bg-accent-50 text-accent-700" : "text-gray-700"}`}
                 >
-                  {it.label}
+                  <span aria-hidden>{it.icon}</span>
+                  <span>{it.label}</span>
                 </Link>
               );
             })}
           </nav>
         </aside>
         <div>
-          <header className="sticky top-0 z-40 border-b bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+          <header className="sticky top-0 z-40 border-b bg-gradient-to-b from-white/90 to-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60">
             <div className="mx-auto max-w-content-5xl px-4 py-3 flex items-center justify-between gap-3">
-              <div className="text-sm text-gray-700 flex items-center gap-2">
-                <span className="text-gray-600">SSE</span>
-                {sseStatus === "connected" ? (
-                  <Badge variant="info">connected</Badge>
-                ) : sseStatus === "disconnected" ? (
-                  <Badge variant="error">disconnected</Badge>
-                ) : (
-                  <Badge variant="default">connecting…</Badge>
-                )}
+              <div className="text-sm text-gray-900 font-medium">
+                Operator Console
               </div>
               <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-600">SSE</span>
+                  {sseStatus === "connected" ? (
+                    <Badge variant="info">Connected</Badge>
+                  ) : sseStatus === "disconnected" ? (
+                    <Badge variant="error">Disconnected</Badge>
+                  ) : (
+                    <Badge variant="default">Connecting…</Badge>
+                  )}
+                </div>
                 {guardrails ? (
                   <Badge variant="warning">
                     conc {guardrails.max_concurrency} · max $

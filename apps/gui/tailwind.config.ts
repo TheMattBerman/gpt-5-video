@@ -16,6 +16,13 @@ export default {
           600: "#2563eb",
           700: "#1d4ed8",
         },
+        neutral: {
+          50: "#f9fafb",
+          100: "#f3f4f6",
+          200: "#e5e7eb",
+          700: "#374151",
+          900: "#111827",
+        },
         semantic: {
           yellow: { bg: "#FEF9C3", text: "#854D0E", border: "#FDE68A" },
           blue: { bg: "#EFF6FF", text: "#1E40AF", border: "#BFDBFE" },
@@ -31,6 +38,13 @@ export default {
         card: "0 1px 2px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.02)",
         elevated:
           "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+      },
+      transitionTimingFunction: {
+        standard: "cubic-bezier(0.4, 0, 0.2, 1)",
+      },
+      transitionDuration: {
+        150: "150ms",
+        200: "200ms",
       },
       fontFamily: {
         sans: [
