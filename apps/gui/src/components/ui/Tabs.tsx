@@ -36,7 +36,7 @@ export default function Tabs({
             role="tab"
             tabIndex={active === t.id ? 0 : -1}
             aria-selected={active === t.id}
-            className={`px-3 py-2 text-sm -mb-px border-b-2 rounded-t-md ${
+            className={`px-3 py-2 text-sm -mb-px border-b-2 rounded-t-md transition-colors duration-150 ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 ${
               active === t.id
                 ? "border-accent-600 bg-accent-50 text-gray-900"
                 : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50"

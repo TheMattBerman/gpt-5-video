@@ -172,7 +172,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   }
                 >
                   <button
-                    className={`inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-xs transition-colors duration-150 ease-standard focus-visible:ring-2 focus-visible:ring-accent-600 ${presentation ? "bg-accent-50 text-gray-900" : "hover:bg-gray-50"}`}
+                    className={`inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-xs transition-colors duration-150 ease-standard focus-visible:ring-2 focus-visible:ring-accent-600 shadow-sm hover:shadow-card ${presentation ? "bg-accent-50 text-gray-900" : "hover:bg-gray-50"}`}
                     onClick={() => setPresentation((v) => !v)}
                     aria-label="Toggle presentation mode"
                   >

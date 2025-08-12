@@ -212,7 +212,7 @@ export default function Home() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2" variant="surface-1">
           <CardHeader>
             <CardTitle>Operational KPIs</CardTitle>
             {!serverKpis && (
@@ -294,7 +294,7 @@ export default function Home() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="surface-2">
           <CardHeader>
             <CardTitle>Getting Started</CardTitle>
           </CardHeader>
@@ -331,7 +331,7 @@ export default function Home() {
         </Card>
       </div>
 
-      <Card>
+      <Card variant="surface-1">
         <CardHeader>
           <CardTitle>Recent assets (session)</CardTitle>
         </CardHeader>

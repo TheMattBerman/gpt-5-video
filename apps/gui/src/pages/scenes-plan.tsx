@@ -393,7 +393,7 @@ export default function ScenesPlanPage() {
                         errors={ajvErrors}
                         onJumpFirst={jumpToFirstError}
                       />
-                      <Card>
+                      <Card variant="surface-2">
                         <CardHeader>
                           <CardTitle className="text-sm">
                             Helper: What good looks like

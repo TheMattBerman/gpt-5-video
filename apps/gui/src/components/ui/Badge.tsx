@@ -22,6 +22,10 @@ export default function Badge({
   ...props
 }: BadgeProps) {
   return (
-    <span className={`${base} ${styles[variant]} ${className}`} {...props} />
+    <span
+      className={`${base} ${styles[variant]} ${className}`}
+      role="status"
+      {...props}
+    />
   );
 }

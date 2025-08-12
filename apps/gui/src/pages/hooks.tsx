@@ -397,7 +397,7 @@ export default function HooksPage() {
           </Link>
         </nav>
 
-        <Card>
+        <Card variant="surface-1">
           <CardHeader>
             <CardTitle className="text-sm">Toolbar</CardTitle>
           </CardHeader>

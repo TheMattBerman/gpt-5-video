@@ -34,7 +34,7 @@ export function TD({
   className = "",
   ...props
 }: TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={`table-cell odd:bg-gray-50 ${className}`} {...props} />;
+  return <td className={`table-cell ${className}`} {...props} />;
 }
 
 export default Table;

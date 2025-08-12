@@ -1,12 +1,18 @@
 import { HTMLAttributes } from "react";
 
-const base = "rounded-md border bg-white shadow-card";
+type CardVariant = "surface-1" | "surface-2";
+
+const base = "rounded-md border shadow-card";
 
 export function Card({
   className = "",
+  variant = "surface-1",
   ...props
-}: HTMLAttributes<HTMLDivElement>) {
-  return <div className={`${base} p-4 ${className}`} {...props} />;
+}: HTMLAttributes<HTMLDivElement> & { variant?: CardVariant }) {
+  const variantClasses = variant === "surface-2" ? "bg-neutral-50" : "bg-white";
+  return (
+    <div className={`${base} ${variantClasses} p-4 ${className}`} {...props} />
+  );
 }
 
 export function CardHeader({
