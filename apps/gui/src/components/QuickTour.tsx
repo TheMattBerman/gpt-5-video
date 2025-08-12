@@ -1,5 +1,4 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import Tooltip from "./ui/Tooltip";
+import { useEffect, useMemo, useState } from "react";
 
 export type QuickTourStep = {
   id: string;
@@ -45,8 +44,12 @@ export default function QuickTour({
   if (!step) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center pointer-events-none">
-      <div className="pointer-events-auto mb-6 w-[520px] rounded-md border bg-white p-4 shadow-elevated">
+    <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        aria-hidden
+      />
+      <div className="relative m-4 w-full max-w-[560px] rounded-md border bg-white p-5 shadow-elevated">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-gray-900">
@@ -67,8 +70,14 @@ export default function QuickTour({
           </button>
         </div>
         <div className="mt-3 flex items-center justify-between">
-          <div className="text-xs text-gray-600">
-            Step {index + 1} of {steps.length}
+          <div className="flex items-center gap-1">
+            {steps.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 w-6 rounded-full ${i === index ? "bg-accent-600" : "bg-gray-200"}`}
+                aria-hidden
+              />
+            ))}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -86,7 +95,7 @@ export default function QuickTour({
               Next
             </button>
             <button
-              className="rounded bg-black px-2.5 py-1 text-white text-xs"
+              className="rounded bg-accent-600 hover:bg-accent-700 px-2.5 py-1 text-white text-xs"
               onClick={() => {
                 try {
                   window.localStorage.setItem(storageKey, "1");

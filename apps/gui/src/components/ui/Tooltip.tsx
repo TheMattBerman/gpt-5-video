@@ -38,7 +38,7 @@ export default function Tooltip({
       {open && (
         <div
           role="tooltip"
-          className="absolute z-50 -translate-y-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black px-2 py-1 text-[11px] text-white shadow-md"
+          className="absolute z-50 -translate-y-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/90 px-2 py-1 text-[11px] text-white shadow-elevated"
         >
           {label}
         </div>

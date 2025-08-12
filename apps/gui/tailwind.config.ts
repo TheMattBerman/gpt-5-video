@@ -30,6 +30,10 @@ export default {
           green: { bg: "#ECFDF5", text: "#065F46", border: "#A7F3D0" },
         },
       },
+      backgroundImage: {
+        "subtle-noise":
+          "radial-gradient(rgba(0,0,0,0.03) 1px, transparent 1px)",
+      },
       borderRadius: {
         sm: "6px",
         md: "8px",

@@ -7,7 +7,7 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const base =
-  "inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium border";
+  "inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium border shadow-sm";
 const styles: Record<BadgeVariant, string> = {
   default: "bg-gray-100 text-gray-800 border-gray-200",
   warning: "bg-yellow-50 text-yellow-800 border-yellow-200",
