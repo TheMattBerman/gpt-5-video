@@ -51,10 +51,14 @@ export default function CharacterPage() {
       status: string;
     }>
   >([]);
-  const validate = useMemo(
-    () => ajv.compile(characterProfileSchema as any),
-    [],
-  );
+  const validate = useMemo(() => {
+    // Avoid Ajv duplicate schema registration by stripping $id meta
+    const schema = JSON.parse(JSON.stringify(characterProfileSchema));
+    if (schema && typeof schema === "object" && "$id" in schema) {
+      delete (schema as any).$id;
+    }
+    return ajv.compile(schema as any);
+  }, []);
   const prefixRef = useRef<string>(`dev/character/${Date.now()}/`);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -130,12 +134,18 @@ export default function CharacterPage() {
         });
         if (!putRes.ok) throw new Error(`put failed: ${putRes.status}`);
         let previewUrl: string;
-        if (publicAssetBase) previewUrl = `${publicAssetBase}/${key}`;
-        else {
+        if (publicAssetBase) {
+          const keySafe = key
+            .split("/")
+            .map((seg) => encodeURIComponent(seg))
+            .join("/");
+          previewUrl = `${publicAssetBase}/${keySafe}`;
+        } else {
           const dbg = await fetch(
             `${apiBase}/uploads/debug-get?key=${encodeURIComponent(key)}`,
           ).then((r) => r.json());
-          previewUrl = (dbg.public_url as string) || (dbg.url as string) || "";
+          const pub = (dbg.public_url as string) || "";
+          previewUrl = pub ? encodeURI(pub) : (dbg.url as string) || "";
         }
         if (!previewUrl) throw new Error("preview url missing");
         results.push({ key, previewUrl, contentType: ctype });
@@ -340,7 +350,7 @@ export default function CharacterPage() {
               <Button
                 type="button"
                 onClick={submitProfile}
-                disabled={referenceImages.length === 0}
+                disabled={!validation.ok}
               >
                 Submit Profile
               </Button>

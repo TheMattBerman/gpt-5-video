@@ -125,7 +125,13 @@ app.use((req, res, next) => {
 const validateBrand = ajv.compile(brandProfileSchema as any);
 const validateSceneSpec = ajv.compile(sceneSpecSchema as any);
 const validateVideoManifest = ajv.compile(videoManifestSchema as any);
-const validateCharacter = ajv.compile(characterProfileSchema as any);
+// Strip $id to avoid duplicate schema registration in dev reloads
+const validateCharacter = (() => {
+  const schema = JSON.parse(JSON.stringify(characterProfileSchema as any));
+  if (schema && typeof schema === "object" && "$id" in schema)
+    delete schema.$id;
+  return ajv.compile(schema as any);
+})();
 
 app.post("/ingest/brand", (req: Request, res: Response) => {
   if (!validateBrand(req.body)) {
@@ -275,12 +281,31 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
                 const caption = String(
                   v?.desc || v?.content_desc || v?.title || "",
                 );
+                // Try to fetch transcript for a stronger first-line hook seed
+                let firstTransLine: string | undefined;
+                try {
+                  if (shareUrl) {
+                    const info = await scGetTiktokVideo({
+                      apiKey: scApiKey,
+                      url: shareUrl,
+                      get_transcript: true,
+                      trim: true,
+                      baseUrl: process.env.SCRAPECREATORS_BASE_URL || undefined,
+                    });
+                    const transcript = String(info?.transcript || "").trim();
+                    if (transcript) {
+                      const head =
+                        transcript.split(/\n|[.!?]/)[0] || transcript;
+                      firstTransLine = head.slice(0, 140).trim();
+                    }
+                  }
+                } catch {}
                 const views = Number(v?.statistics?.play_count || 0);
                 all.push({
                   platform: src.platform,
                   author,
                   url: shareUrl,
-                  caption_or_transcript: caption,
+                  caption_or_transcript: firstTransLine || caption,
                   detected_format: "", // can be post-processed later
                   metrics: {
                     views,
@@ -288,7 +313,11 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
                     comments: Number(v?.statistics?.comment_count || 0),
                   },
                   scraper: "scrapecreators",
-                  scrape_meta: { request_id: (req as any).id || "", page: 0 },
+                  scrape_meta: {
+                    request_id: (req as any).id || "",
+                    page: 0,
+                    first_transcript_line: firstTransLine || null,
+                  },
                   platform_post_id: String(
                     v?.aweme_id || v?.id || v?.id_str || "",
                   ),
@@ -417,9 +446,10 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
         const clusters: Record<string, any[]> = {};
         for (const row of corpusRows) {
           // Prefer on-image text or first transcript line if available; fallback to caption
+          const meta = (row as any).scrape_meta || {};
           const text = String(
-            (row as any).on_image_text ||
-              (row as any).first_transcript_line ||
+            meta.on_image_text ||
+              meta.first_transcript_line ||
               row.caption_or_transcript ||
               "",
           );
@@ -439,116 +469,154 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
           status: "processing",
           progress: { step: "generating", pct: 50 },
         });
-        const out: Array<{
+        // Legacy pushHook removed; out will be constructed by LLM or fallback
+        const byCluster = Object.entries(clusters)
+          .sort((a, b) => b[1].length - a[1].length)
+          .slice(0, 4);
+        // LLM brand-aware rewrite (preferred)
+        const openai = process.env.OPENAI_API_KEY || "";
+        let out: Array<{
           hook_text: string;
           angle: string;
           icp: string;
           risk_flags: string[];
           inspiration_url?: string;
         }> = [];
-        const icp = icpFilter || "DTC operators";
-        const pushHook = (
-          hook_text: string,
-          angle: string,
-          inspiration_url?: string,
-        ) => {
-          const risk: string[] = [];
-          if (/guarantee|will|always/i.test(hook_text))
-            risk.push("implied guarantee");
-          out.push({
-            hook_text,
-            angle,
-            icp,
-            risk_flags: risk,
-            inspiration_url,
-          });
-        };
-        const byCluster = Object.entries(clusters)
-          .sort((a, b) => b[1].length - a[1].length)
-          .slice(0, 4);
-        // Light brand conditioning (principles + banned phrases)
-        let brand: any = null;
-        try {
-          brand = await getLatestBrandProfile();
-        } catch {}
-        const brandVoicePrinciples: string[] = Array.isArray(
-          brand?.data?.voice?.principles,
-        )
-          ? brand.data.voice.principles
-          : [];
-        const banned: string[] = Array.isArray(
-          brand?.data?.voice?.banned_phrases,
-        )
-          ? brand.data.voice.banned_phrases
-          : [];
-        const applyBrandVoice = (t: string) => {
-          let s = t;
-          for (const b of banned) {
-            if (!b) continue;
-            const re = new RegExp(
-              b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-              "ig",
+        if (openai) {
+          try {
+            const brandLatest = await getLatestBrandProfile();
+            const icp = icpFilter || "DTC operators";
+            const candidates: Array<{
+              text: string;
+              angle: string;
+              url?: string;
+            }> = [];
+            for (const [label, rows] of byCluster) {
+              for (const r of rows.slice(0, 10)) {
+                const meta = (r as any).scrape_meta || {};
+                const base = String(
+                  meta.on_image_text ||
+                    meta.first_transcript_line ||
+                    r.caption_or_transcript ||
+                    "",
+                );
+                const short =
+                  base.split(/[.!?]/)[0]?.slice(0, 120) || base.slice(0, 120);
+                const angle =
+                  label === "contrarian"
+                    ? "contrarian"
+                    : label === "howto"
+                      ? "howto"
+                      : label === "pattern_interrupt"
+                        ? "pattern_interrupt"
+                        : "insight";
+                if (short.trim())
+                  candidates.push({
+                    text: short.trim(),
+                    angle,
+                    url: (r as any).url,
+                  });
+                if (candidates.length >= 40) break;
+              }
+              if (candidates.length >= 40) break;
+            }
+            const reqBody: any = {
+              model: process.env.OPENAI_LLM_MODEL || "gpt-5",
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "You are a creative strategist. Output strictly valid JSON only, no prose.",
+                },
+                {
+                  role: "user",
+                  content: JSON.stringify({
+                    brand: brandLatest?.data || {},
+                    icp,
+                    candidates,
+                    instructions:
+                      "Rewrite each candidate into a short-video hook in brand voice. 1-2 clauses, <= 110 chars, punchy, no emojis unless on-brand. Maintain or infer angle. Return JSON { items: [{ hook_text, angle, icp }] }",
+                  }),
+                },
+              ],
+              temperature: 0.7,
+              response_format: { type: "json_object" },
+            };
+            const resp = await fetch(
+              "https://api.openai.com/v1/chat/completions",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${openai}`,
+                },
+                body: JSON.stringify(reqBody),
+              },
             );
-            s = s.replace(re, "");
+            const data = await resp.json();
+            const content = data?.choices?.[0]?.message?.content || "{}";
+            const parsed = (() => {
+              try {
+                return JSON.parse(content);
+              } catch {
+                return {};
+              }
+            })();
+            const items = Array.isArray(parsed?.items)
+              ? parsed.items
+              : Array.isArray(parsed)
+                ? parsed
+                : [];
+            for (const it of items) {
+              const text = String(it?.hook_text || "").trim();
+              if (!text) continue;
+              out.push({
+                hook_text: text,
+                angle: String(it?.angle || "insight"),
+                icp,
+                risk_flags: [],
+              });
+              if (out.length >= 40) break;
+            }
+          } catch (e) {
+            // fall back below
+            out = [];
           }
-          if (brandVoicePrinciples[0]) {
-            s = `${s} — ${brandVoicePrinciples[0].toLowerCase()}`;
-          }
-          return s.trim();
-        };
-        for (const [label, rows] of byCluster) {
-          const top = rows.slice(0, 10);
-          for (const r of top) {
-            const base = String(
-              (r as any).on_image_text ||
-                (r as any).first_transcript_line ||
-                r.caption_or_transcript ||
-                "",
-            );
-            const short =
-              base.split(/[.!?]/)[0]?.slice(0, 80) || base.slice(0, 80);
-            if (label === "contrarian")
-              pushHook(
-                applyBrandVoice(
-                  short
-                    .replace(/^(i\s+think|we\s+think)\s+/i, "")
-                    .replace(/\.$/, "") +
-                    ". Your CAC isn’t high. Your loop is broken.",
-                ),
-                "contrarian",
-                r.url,
+        }
+
+        if (out.length === 0) {
+          // Heuristic fallback: sample from clusters
+          const icp = icpFilter || "DTC operators";
+          for (const [label, rows] of byCluster) {
+            const top = rows.slice(0, 10);
+            for (const r of top) {
+              const base = String(
+                (r as any).on_image_text ||
+                  (r as any).first_transcript_line ||
+                  r.caption_or_transcript ||
+                  "",
               );
-            else if (label === "howto")
-              pushHook(
-                applyBrandVoice(
-                  `3 steps: ${short
-                    .replace(/^(how\s+to\s+)/i, "")
-                    .replace(/\.$/, "")} → lock your loop, cut CAC`,
-                ),
-                "howto",
-                r.url,
-              );
-            else if (label === "pattern_interrupt")
-              pushHook(
-                applyBrandVoice(
-                  `Everyone is wrong about ${short
-                    .replace(/everyone\s+is\s+wrong\s+about\s+/i, "")
-                    .replace(/\.$/, "")} — here’s the loop that wins`,
-                ),
-                "pattern_interrupt",
-                r.url,
-              );
-            else
-              pushHook(
-                applyBrandVoice(
-                  `${short.replace(/\.$/, "")} — fix your loop, win your market`,
-                ),
-                "insight",
-                r.url,
-              );
+              const short =
+                base.split(/[.!?]/)[0]?.slice(0, 80) || base.slice(0, 80);
+              const angle =
+                label === "contrarian"
+                  ? "contrarian"
+                  : label === "howto"
+                    ? "howto"
+                    : label === "pattern_interrupt"
+                      ? "pattern_interrupt"
+                      : "insight";
+              out.push({
+                hook_text: short,
+                angle,
+                icp,
+                risk_flags: [],
+                inspiration_url: (r as any).url,
+              });
+              if (out.length >= 40) break;
+            }
             if (out.length >= 40) break;
           }
-          if (out.length >= 40) break;
         }
 
         broadcastJobEvent({
@@ -562,7 +630,11 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
           jobId,
           provider: "gpt",
           amountUsd: Math.max(0.01, out.length * 0.001),
-          meta: { route: "hooks.synthesize", icp, count: out.length },
+          meta: {
+            route: "hooks.synthesize",
+            icp: icpFilter || "DTC operators",
+            count: out.length,
+          },
         });
         await updateJob({
           id: jobId,

@@ -17,8 +17,11 @@ const sizes: Record<Size, string> = {
 const variants: Record<Variant, string> = {
   primary:
     "bg-accent-600 text-white hover:bg-accent-700 focus-visible:ring-accent-600",
-  secondary: "border bg-white hover:bg-gray-50 focus-visible:ring-gray-400",
-  ghost: "hover:bg-gray-100",
+  // Stronger contrast on white surfaces; visible border and text color
+  secondary:
+    "border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus-visible:ring-gray-400",
+  // Keep ghost subtle but readable
+  ghost: "text-gray-900 hover:bg-gray-100",
   danger: "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600",
 };
 

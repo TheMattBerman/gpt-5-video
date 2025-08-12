@@ -6,8 +6,10 @@ addFormats(ajv);
 
 function stripMetaSchema<T extends Record<string, unknown>>(schema: T): T {
   const clone = JSON.parse(JSON.stringify(schema));
-  if (clone && typeof clone === "object" && "$schema" in clone) {
-    delete (clone as any).$schema;
+  if (clone && typeof clone === "object") {
+    if ("$schema" in clone) delete (clone as any).$schema;
+    // Remove $id to prevent Ajv duplicate schema registration across HMR/StrictMode rerenders
+    if ("$id" in clone) delete (clone as any).$id;
   }
   return clone;
 }
@@ -22,4 +24,3 @@ export function validate<T>(schema: object, data: unknown) {
   const valid = validator(data);
   return { valid, errors: validator.errors } as const;
 }
-

@@ -137,6 +137,9 @@ Acceptance (Week 2)
 - [x] Beauty pass refinement (batch 1)
   - Impact: Base styles and tokens reaffirmed; subtle elevation on buttons; delayed accessible tooltips; table utilities for zebra + sticky header. Files: `apps/gui/src/styles/globals.css`, `apps/gui/src/components/ui/{Button,Tooltip,Input,Select,Textarea}.tsx`. Builds green (`npm run -ws typecheck && npm run -ws build`).
 
+- [x] Character page upload UX polish
+  - Impact: On `apps/gui/src/pages/character.tsx`, replaced raw inputs with UI primitives; added clear `Choose images` secondary button and primary `Upload N selected`; submit now enabled after at least one image is uploaded (server-side schema validation still enforced). Removed duplicate seed lock checkbox; improved selects to use `Select` component. Builds green.
+
 Acceptance (Week 3)
 
 - [ ] 5 video drafts created with audio in both voiceover and dialogue modes when enabled; export flows work; GUI reflects job state changes within 3s.
