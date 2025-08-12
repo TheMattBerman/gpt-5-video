@@ -48,6 +48,7 @@ import {
 import {
   ScrapeCreatorsClient,
   scGetTiktokProfileVideos,
+  scGetTiktokVideo,
 } from "@gpt5video/scrapecreators";
 import {
   ReplicateClient,
@@ -415,7 +416,13 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
         // Simple heuristic clustering by detected_format or text signals
         const clusters: Record<string, any[]> = {};
         for (const row of corpusRows) {
-          const text = String(row.caption_or_transcript || "");
+          // Prefer on-image text or first transcript line if available; fallback to caption
+          const text = String(
+            (row as any).on_image_text ||
+              (row as any).first_transcript_line ||
+              row.caption_or_transcript ||
+              "",
+          );
           let label = String(row.detected_format || "").trim() || "general";
           if (/^everyone|nobody|no one|stop/i.test(text))
             label = "pattern_interrupt";
@@ -462,7 +469,12 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
         for (const [label, rows] of byCluster) {
           const top = rows.slice(0, 10);
           for (const r of top) {
-            const base = String(r.caption_or_transcript || "");
+            const base = String(
+              (r as any).on_image_text ||
+                (r as any).first_transcript_line ||
+                r.caption_or_transcript ||
+                "",
+            );
             const short =
               base.split(/[.!?]/)[0]?.slice(0, 80) || base.slice(0, 80);
             if (label === "contrarian")

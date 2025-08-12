@@ -109,6 +109,9 @@ export default function HooksPage() {
   const [synthProgress, setSynthProgress] = useState<string>("");
   const [synthErrorCat, setSynthErrorCat] = useState<string>("");
   const [mineErrorCat, setMineErrorCat] = useState<string>("");
+  // Brand context (used to prefill ICP so results feel like yours)
+  const [brandIcpDefault, setBrandIcpDefault] = useState<string>("");
+  const [brandName, setBrandName] = useState<string>("");
   const [mineAttemptCount, setMineAttemptCount] = useState<number>(0);
   const [synthAttemptCount, setSynthAttemptCount] = useState<number>(0);
   const [corpusPage, setCorpusPage] = useState<{
@@ -202,6 +205,12 @@ export default function HooksPage() {
                 synthId: String(data.id),
                 mineId: lastMineId,
               });
+              // Bring the user directly to the actionable review table
+              try {
+                document
+                  .getElementById("synth-review")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              } catch {}
             }
           }
           if (data.status === "failed") {
@@ -217,6 +226,27 @@ export default function HooksPage() {
     return () => {
       es.removeEventListener("job", onJob as any);
       es.close();
+    };
+  }, [apiBase]);
+
+  // Load latest brand to prefill ICP in synth dialog
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/ingest/brand/latest`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const icp = Array.isArray(data?.icp_segments)
+          ? String(data.icp_segments[0]?.name || "")
+          : "";
+        setBrandIcpDefault(icp);
+        setBrandName(String(data?.brand_id || data?.name || ""));
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
     };
   }, [apiBase]);
 
@@ -551,7 +581,7 @@ export default function HooksPage() {
                 <button
                   className="rounded border px-2 py-1 text-sm"
                   onClick={() => {
-                    setSynthDialogIcp("");
+                    setSynthDialogIcp(brandIcpDefault || "");
                     setSynthDialogCorpusId(lastMineId || "");
                     setSynthDialogOpen(true);
                   }}
@@ -612,6 +642,20 @@ export default function HooksPage() {
                     value={synthDialogCorpusId}
                     onChange={(e) => setSynthDialogCorpusId(e.target.value)}
                   />
+                  <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-500">
+                    <span>
+                      Use the id from your last mining run
+                      {lastMineId ? `: ${lastMineId}` : "."}
+                    </span>
+                    {lastMineId && (
+                      <button
+                        className="rounded border px-1.5 py-0.5 text-[11px]"
+                        onClick={() => setSynthDialogCorpusId(lastMineId)}
+                      >
+                        Use last
+                      </button>
+                    )}
+                  </div>
                 </label>
                 <label className="text-sm">
                   <span className="text-gray-700">ICP (optional)</span>
@@ -621,6 +665,17 @@ export default function HooksPage() {
                     value={synthDialogIcp}
                     onChange={(e) => setSynthDialogIcp(e.target.value)}
                   />
+                  {(brandIcpDefault || brandName) && (
+                    <div className="mt-1 text-[11px] text-gray-500">
+                      {brandName ? <span className="mr-1">Brand</span> : null}
+                      {brandName ? (
+                        <span className="font-mono">{brandName}</span>
+                      ) : null}
+                      {brandIcpDefault ? (
+                        <span>{` · default ICP: ${brandIcpDefault}`}</span>
+                      ) : null}
+                    </div>
+                  )}
                 </label>
               </div>
               <div className="flex items-center justify-end gap-2">
@@ -1039,20 +1094,7 @@ export default function HooksPage() {
               </div>
             </div>
           )}
-          {!!synth.length && (
-            <div className="mt-3">
-              <div className="text-sm font-medium mb-1">
-                Synthesized hooks (sample)
-              </div>
-              <ul className="list-disc pl-4 text-xs">
-                {synth.slice(0, 5).map((h, i) => (
-                  <li key={i} className="truncate">
-                    {h.hook_text || JSON.stringify(h)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* Removed the confusing sample list; users go straight to the review table below. */}
         </section>
         <section className="rounded border bg-white p-4 grid grid-cols-2 gap-4">
           <div>
@@ -1279,6 +1321,7 @@ export default function HooksPage() {
                 </div>
               </div>
             </div>
+            <div id="synth-review" />
             {synthFiltered.length === 0 ? (
               <EmptyState
                 title="No synthesized hooks yet"
@@ -1365,7 +1408,7 @@ export default function HooksPage() {
                               </Tooltip>
                               <Tooltip label="Plan Scenes">
                                 <button
-                                  className="rounded border px-2 py-0.5"
+                                  className="rounded bg-black px-2 py-0.5 text-white"
                                   onClick={() => planScenesFromHook(h)}
                                   aria-label="Plan scenes from hook"
                                 >
