@@ -466,6 +466,36 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
         const byCluster = Object.entries(clusters)
           .sort((a, b) => b[1].length - a[1].length)
           .slice(0, 4);
+        // Light brand conditioning (principles + banned phrases)
+        let brand: any = null;
+        try {
+          brand = await getLatestBrandProfile();
+        } catch {}
+        const brandVoicePrinciples: string[] = Array.isArray(
+          brand?.data?.voice?.principles,
+        )
+          ? brand.data.voice.principles
+          : [];
+        const banned: string[] = Array.isArray(
+          brand?.data?.voice?.banned_phrases,
+        )
+          ? brand.data.voice.banned_phrases
+          : [];
+        const applyBrandVoice = (t: string) => {
+          let s = t;
+          for (const b of banned) {
+            if (!b) continue;
+            const re = new RegExp(
+              b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+              "ig",
+            );
+            s = s.replace(re, "");
+          }
+          if (brandVoicePrinciples[0]) {
+            s = `${s} — ${brandVoicePrinciples[0].toLowerCase()}`;
+          }
+          return s.trim();
+        };
         for (const [label, rows] of byCluster) {
           const top = rows.slice(0, 10);
           for (const r of top) {
@@ -479,28 +509,40 @@ app.post("/hooks/synthesize", async (req: Request, res: Response) => {
               base.split(/[.!?]/)[0]?.slice(0, 80) || base.slice(0, 80);
             if (label === "contrarian")
               pushHook(
-                short
-                  .replace(/^(i\s+think|we\s+think)\s+/i, "")
-                  .replace(/\.$/, "") +
-                  ". Your CAC isn’t high. Your loop is broken.",
+                applyBrandVoice(
+                  short
+                    .replace(/^(i\s+think|we\s+think)\s+/i, "")
+                    .replace(/\.$/, "") +
+                    ". Your CAC isn’t high. Your loop is broken.",
+                ),
                 "contrarian",
                 r.url,
               );
             else if (label === "howto")
               pushHook(
-                `3 steps: ${short.replace(/^(how\s+to\s+)/i, "").replace(/\.$/, "")} → lock your loop, cut CAC`,
+                applyBrandVoice(
+                  `3 steps: ${short
+                    .replace(/^(how\s+to\s+)/i, "")
+                    .replace(/\.$/, "")} → lock your loop, cut CAC`,
+                ),
                 "howto",
                 r.url,
               );
             else if (label === "pattern_interrupt")
               pushHook(
-                `Everyone is wrong about ${short.replace(/everyone\s+is\s+wrong\s+about\s+/i, "").replace(/\.$/, "")} — here’s the loop that wins`,
+                applyBrandVoice(
+                  `Everyone is wrong about ${short
+                    .replace(/everyone\s+is\s+wrong\s+about\s+/i, "")
+                    .replace(/\.$/, "")} — here’s the loop that wins`,
+                ),
                 "pattern_interrupt",
                 r.url,
               );
             else
               pushHook(
-                `${short.replace(/\.$/, "")} — fix your loop, win your market`,
+                applyBrandVoice(
+                  `${short.replace(/\.$/, "")} — fix your loop, win your market`,
+                ),
                 "insight",
                 r.url,
               );

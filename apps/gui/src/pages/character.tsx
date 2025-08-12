@@ -3,6 +3,7 @@ import PageHeader from "../components/PageHeader";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
 import { ajv } from "@gpt5video/shared";
+import { Button, Input, Select } from "../components/ui";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import characterProfileSchema from "../../../../packages/schemas/schemas/character_profile.schema.json";
@@ -55,6 +56,7 @@ export default function CharacterPage() {
     [],
   );
   const prefixRef = useRef<string>(`dev/character/${Date.now()}/`);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load winner from localStorage
   useEffect(() => {
@@ -246,25 +248,39 @@ export default function CharacterPage() {
         <section className="rounded border bg-white p-4 space-y-3">
           <div className="text-sm font-medium">Reference images</div>
           <input
+            ref={fileInputRef}
+            id="character-ref-input"
             type="file"
             multiple
             accept="image/*"
-            className="block w-full text-sm"
+            className="sr-only"
             onChange={(e) => handlePick(e.target.files)}
           />
-          <div className="flex items-center gap-3">
-            <button
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Choose images
+            </Button>
+            <Button
+              type="button"
               onClick={uploadAll}
               disabled={!files.length || uploading}
-              className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
             >
-              {uploading ? "Uploading..." : "Upload selected"}
-            </button>
+              {uploading
+                ? "Uploading..."
+                : files.length
+                  ? `Upload ${files.length} selected`
+                  : "Upload"}
+            </Button>
             <div className="text-xs text-gray-600">
-              {files.length
-                ? `${files.length} file(s) selected`
-                : "No files selected"}
+              {files.length ? `${files.length} selected` : "No files selected"}
             </div>
+          </div>
+          <div className="text-xs text-gray-500">
+            PNG, JPG, or GIF up to 10MB each
           </div>
           {!!uploaded.length && (
             <div className="mt-2">
@@ -293,8 +309,8 @@ export default function CharacterPage() {
               <span className="text-gray-700">
                 Style constraints (comma-separated)
               </span>
-              <input
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+              <Input
+                className="mt-1"
                 value={styleInput}
                 onChange={(e) => setStyleInput(e.target.value)}
                 placeholder="studio key light, clean typography"
@@ -313,34 +329,21 @@ export default function CharacterPage() {
               <span className="text-gray-700">
                 Mask rules (comma-separated)
               </span>
-              <input
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+              <Input
+                className="mt-1"
                 value={maskInput}
                 onChange={(e) => setMaskInput(e.target.value)}
                 placeholder="preserve face, replace background only"
               />
             </label>
             <div className="flex items-center gap-3">
-              <button
+              <Button
+                type="button"
                 onClick={submitProfile}
-                disabled={!validation.ok}
-                className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
+                disabled={referenceImages.length === 0}
               >
                 Submit Profile
-              </button>
-            </div>
-            <div className="pt-2 border-t mt-2">
-              <label className="inline-flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="rounded border"
-                  checked={seedLocked}
-                  onChange={(e) => setSeedLocked(e.target.checked)}
-                />
-                <span className="text-gray-700">
-                  Lock seed for approved look (local)
-                </span>
-              </label>
+              </Button>
             </div>
           </div>
           <div className="flex flex-col">
@@ -390,34 +393,35 @@ export default function CharacterPage() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-sm">
                   <span className="text-gray-700">Aspect ratio</span>
-                  <select
-                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                  <Select
+                    className="mt-1"
                     value={testAspect}
                     onChange={(e) => setTestAspect(e.target.value)}
                   >
                     <option value="9:16">9:16</option>
                     <option value="1:1">1:1</option>
                     <option value="16:9">16:9</option>
-                  </select>
+                  </Select>
                 </label>
                 <label className="text-sm">
                   <span className="text-gray-700">Rendering speed</span>
-                  <select
-                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                  <Select
+                    className="mt-1"
                     value={testSpeed}
                     onChange={(e) => setTestSpeed(e.target.value)}
                   >
                     <option>Default</option>
                     <option>Turbo</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
-              <button
+              <Button
+                type="button"
+                variant="secondary"
                 onClick={runStabilityTest}
-                className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
               >
                 Run test
-              </button>
+              </Button>
             </div>
             <div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -447,8 +451,10 @@ export default function CharacterPage() {
                       </div>
                     )}
                     {r.output && (
-                      <button
-                        className="rounded border px-2 py-1 text-xs"
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
                         onClick={() => {
                           setSeedLocked(true);
                           const next = { seed: r.seed ?? null, url: r.output };
@@ -462,7 +468,7 @@ export default function CharacterPage() {
                         }}
                       >
                         Select as winner
-                      </button>
+                      </Button>
                     )}
                   </div>
                 ))}

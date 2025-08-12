@@ -112,6 +112,10 @@ export default function HooksPage() {
   // Brand context (used to prefill ICP so results feel like yours)
   const [brandIcpDefault, setBrandIcpDefault] = useState<string>("");
   const [brandName, setBrandName] = useState<string>("");
+  // Recent mined datasets for easy selection in synth dialog
+  const [recentMines, setRecentMines] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
   const [mineAttemptCount, setMineAttemptCount] = useState<number>(0);
   const [synthAttemptCount, setSynthAttemptCount] = useState<number>(0);
   const [corpusPage, setCorpusPage] = useState<{
@@ -243,6 +247,42 @@ export default function HooksPage() {
           : "";
         setBrandIcpDefault(icp);
         setBrandName(String(data?.brand_id || data?.name || ""));
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+
+  // Fetch recent mining runs for selection (friendly labels)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/jobs/recent?limit=50`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data.items) ? data.items : [];
+        const mines = items
+          .filter(
+            (j: any) => j?.type === "hooks_mine" && j?.status === "succeeded",
+          )
+          .map((j: any) => {
+            const req = (j?.payload || {}).request || {};
+            const sources = Array.isArray(req.sources) ? req.sources : [];
+            const primary = sources[0] || {};
+            const platform = String(primary.platform || "");
+            const handle = String(
+              primary.handle || primary.handle_or_url || "",
+            );
+            const limit = primary.limit ? `x${primary.limit}` : "";
+            const extra =
+              sources.length > 1 ? ` +${sources.length - 1} more` : "";
+            const labelParts = [platform, handle, limit].filter(Boolean);
+            const label = `${labelParts.join(" ")}${extra} — ${j.id}`;
+            return { id: String(j.id), label };
+          });
+        if (!cancelled) setRecentMines(mines);
       } catch {}
     })();
     return () => {
@@ -491,13 +531,13 @@ export default function HooksPage() {
                   selected={corpusSort === "created_at:desc"}
                   onClick={() => setCorpusSort("created_at:desc")}
                 >
-                  Corpus newest
+                  Posts newest
                 </Chip>
                 <Chip
                   selected={corpusSort === "created_at:asc"}
                   onClick={() => setCorpusSort("created_at:asc")}
                 >
-                  Corpus oldest
+                  Posts oldest
                 </Chip>
                 <Chip
                   selected={synthSort === "created_at:desc"}
@@ -635,7 +675,7 @@ export default function HooksPage() {
               </div>
               <div className="grid grid-cols-1 gap-3">
                 <label className="text-sm">
-                  <span className="text-gray-700">Corpus ID</span>
+                  <span className="text-gray-700">Mined dataset ID</span>
                   <input
                     className="mt-1 w-full rounded border px-2 py-1 text-sm font-mono"
                     placeholder="hooks_mine_..."
@@ -643,10 +683,7 @@ export default function HooksPage() {
                     onChange={(e) => setSynthDialogCorpusId(e.target.value)}
                   />
                   <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-500">
-                    <span>
-                      Use the id from your last mining run
-                      {lastMineId ? `: ${lastMineId}` : "."}
-                    </span>
+                    <span>Don’t know the id? Pick from recent below.</span>
                     {lastMineId && (
                       <button
                         className="rounded border px-1.5 py-0.5 text-[11px]"
@@ -656,6 +693,24 @@ export default function HooksPage() {
                       </button>
                     )}
                   </div>
+                </label>
+                <label className="text-sm">
+                  <span className="text-gray-700">Recent mined datasets</span>
+                  <select
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    value=""
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      if (id) setSynthDialogCorpusId(id);
+                    }}
+                  >
+                    <option value="">— Select from recent —</option>
+                    {recentMines.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="text-sm">
                   <span className="text-gray-700">ICP (optional)</span>
@@ -1038,7 +1093,7 @@ export default function HooksPage() {
             />
           ) : (
             <div className="mt-3">
-              <div className="text-sm font-medium mb-1">Corpus</div>
+              <div className="text-sm font-medium mb-1">Mined posts</div>
               {corpusFiltered.some((c) =>
                 String(c.url || "").includes("example.com"),
               ) && (
@@ -1397,22 +1452,22 @@ export default function HooksPage() {
                             <div className="flex items-center gap-2">
                               <Tooltip label="Edit">
                                 <button
-                                  className="rounded border px-2 py-0.5"
+                                  className="rounded border px-2 py-1 text-sm"
                                   onClick={() =>
                                     setSynthEdit({ open: true, row: h })
                                   }
                                   aria-label="Edit hook"
                                 >
-                                  ✎
+                                  ✎ Edit
                                 </button>
                               </Tooltip>
                               <Tooltip label="Plan Scenes">
                                 <button
-                                  className="rounded bg-black px-2 py-0.5 text-white"
+                                  className="rounded bg-black px-3 py-1.5 text-white text-sm"
                                   onClick={() => planScenesFromHook(h)}
                                   aria-label="Plan scenes from hook"
                                 >
-                                  🎬
+                                  🎬 Plan Scenes
                                 </button>
                               </Tooltip>
                               <label className="inline-flex items-center gap-1 text-[11px]">
