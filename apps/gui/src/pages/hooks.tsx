@@ -462,6 +462,42 @@ export default function HooksPage() {
     void router.push(`/scenes-plan?prefill=${payload}`);
   }
 
+  async function autoPlanFromHook(h: HookSynthRow) {
+    try {
+      const hookText = String(h.edited_hook_text || h.hook_text || "").trim();
+      if (!hookText) {
+        show({ title: "Missing hook text", variant: "error" });
+        return;
+      }
+      const res = await fetchWithAuth(`${apiBase}/scenes/auto-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hooks: [hookText], count_per_hook: 3 }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        show({
+          title: "Auto-plan failed",
+          description: String(data?.error || res.statusText),
+          variant: "error",
+        });
+        return;
+      }
+      const batchId = String(data?.id || "");
+      show({ title: `Planned ${data?.count ?? 0} scenes`, variant: "success" });
+      if (batchId)
+        void router.push(
+          `/scenes-plan?batch_id=${encodeURIComponent(batchId)}`,
+        );
+    } catch (e: any) {
+      show({
+        title: "Auto-plan failed",
+        description: String(e?.message || e),
+        variant: "error",
+      });
+    }
+  }
+
   useEffect(() => {
     try {
       localStorage.setItem("gpt5video_hooks_sources", JSON.stringify(sources));
@@ -481,7 +517,7 @@ export default function HooksPage() {
         s.limit > 0,
     );
   return (
-    <main className="min-h-dvh bg-gray-50">
+    <main className="min-h-dvh">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
         <QuickTour
           steps={[
@@ -1521,6 +1557,15 @@ export default function HooksPage() {
                                   aria-label="Plan scenes from hook"
                                 >
                                   🎬 Plan Scenes
+                                </button>
+                              </Tooltip>
+                              <Tooltip label="Auto-plan JSON scenes for this hook">
+                                <button
+                                  className="rounded border px-2 py-1 text-sm"
+                                  onClick={() => void autoPlanFromHook(h)}
+                                  aria-label="Auto-plan scenes"
+                                >
+                                  ⚙ Auto-plan
                                 </button>
                               </Tooltip>
                               <label className="inline-flex items-center gap-1 text-[11px]">

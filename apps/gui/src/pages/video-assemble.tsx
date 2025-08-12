@@ -350,7 +350,7 @@ export default function VideoAssemblePage() {
   }
 
   return (
-    <main className="min-h-dvh bg-gray-50">
+    <main className="min-h-dvh">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
         <QuickTour
           steps={[

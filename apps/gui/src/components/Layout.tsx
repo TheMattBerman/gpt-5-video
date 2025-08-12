@@ -110,7 +110,7 @@ export function Layout({ children }: { children: ReactNode }) {
   }, [presentation]);
 
   return (
-    <div className="min-h-dvh bg-gray-50">
+    <div className="min-h-dvh bg-neutral-50 bg-subtle-noise">
       <div
         className={`grid grid-cols-1 ${presentation ? "md:grid-cols-1" : "md:grid-cols-[240px_1fr]"}`}
       >

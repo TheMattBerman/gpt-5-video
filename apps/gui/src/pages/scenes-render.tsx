@@ -140,6 +140,15 @@ export default function ScenesRenderPage() {
   const [thumbsByIndex, setThumbsByIndex] = useState<Record<number, string[]>>(
     {},
   );
+  const [lookupSceneId, setLookupSceneId] = useState<string>("");
+  const [persistedImages, setPersistedImages] = useState<
+    Array<{
+      image_url: string;
+      seed?: number;
+      model_version?: string;
+      created_at?: string;
+    }>
+  >([]);
   const thumbTimers = useRef<
     Record<number, ReturnType<typeof setTimeout> | null>
   >({});
@@ -229,7 +238,7 @@ export default function ScenesRenderPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-gray-50">
+    <main className="min-h-dvh">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
         <QuickTour
           steps={[
@@ -354,6 +363,51 @@ export default function ScenesRenderPage() {
                     Queue 15 renders
                   </Button>
                 </Tooltip>
+                <div className="ml-auto flex items-center gap-2">
+                  <input
+                    className="rounded border px-2 py-1 text-xs"
+                    placeholder="scene_id to lookup"
+                    value={lookupSceneId}
+                    onChange={(e) => setLookupSceneId(e.target.value)}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const sid = lookupSceneId.trim();
+                        if (!sid) return;
+                        const res = await fetch(
+                          `${apiBase}/scenes/images?scene_id=${encodeURIComponent(sid)}`,
+                        );
+                        if (!res.ok) throw new Error("lookup_failed");
+                        const data = await res.json();
+                        const items = Array.isArray(data.items)
+                          ? data.items
+                          : [];
+                        setPersistedImages(
+                          items.map((r: any) => ({
+                            image_url: String(r.image_url || ""),
+                            seed:
+                              typeof r.seed === "number" ? r.seed : undefined,
+                            model_version: String(r.model_version || ""),
+                            created_at: String(r.created_at || ""),
+                          })),
+                        );
+                      } catch (e: any) {
+                        setPersistedImages([]);
+                        show({
+                          title: "Lookup failed",
+                          description: String(e?.message || e),
+                          variant: "error",
+                        });
+                      }
+                    }}
+                    aria-label="Lookup persisted images"
+                  >
+                    Lookup images
+                  </Button>
+                </div>
               </div>
               {resp && (
                 <div className="mt-3 space-y-2 text-sm">
@@ -431,6 +485,29 @@ export default function ScenesRenderPage() {
               {sseEvents.length === 0 && (
                 <div className="text-gray-500">Waiting for events…</div>
               )}
+            </div>
+          </Card>
+        )}
+        {persistedImages.length > 0 && (
+          <Card>
+            <div className="text-sm font-medium mb-2">Persisted images</div>
+            <div className="grid grid-cols-4 gap-3">
+              {persistedImages.map((r, i) => (
+                <div key={i} className="rounded border p-2">
+                  <img
+                    src={r.image_url}
+                    className="w-full h-40 object-contain"
+                  />
+                  <div className="mt-1 text-[11px] text-gray-600">
+                    {r.seed != null && (
+                      <span className="mr-2">seed {String(r.seed)}</span>
+                    )}
+                    {r.model_version && (
+                      <span className="block truncate">{r.model_version}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </Card>
         )}

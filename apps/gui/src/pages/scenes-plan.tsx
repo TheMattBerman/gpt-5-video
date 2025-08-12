@@ -94,6 +94,16 @@ export default function ScenesPlanPage() {
   const [characters, setCharacters] = useState<
     Array<{ id: string; name?: string; image?: string }>
   >([]);
+  const [savedSpecs, setSavedSpecs] = useState<
+    Array<{
+      id: number;
+      batch_id: string;
+      scene_id: string;
+      spec: any;
+      created_at: string;
+    }>
+  >([]);
+  const [savedLoading, setSavedLoading] = useState(false);
 
   // Prefill from query param
   useEffect(() => {
@@ -134,6 +144,38 @@ export default function ScenesPlanPage() {
       } catch {}
     })();
   }, [apiBase]);
+
+  // Load saved specs by batch_id or scene_id when provided
+  useEffect(() => {
+    const batch =
+      typeof router.query?.batch_id === "string" ? router.query.batch_id : "";
+    const sid =
+      typeof router.query?.scene_id === "string" ? router.query.scene_id : "";
+    if (!batch && !sid) return;
+    setSavedLoading(true);
+    (async () => {
+      try {
+        const params = new URLSearchParams();
+        if (batch) params.set("batch_id", batch);
+        if (sid) params.set("scene_id", sid);
+        const res = await fetch(`${apiBase}/scenes/plan?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data.items) ? data.items : [];
+          setSavedSpecs(
+            items.map((r: any) => ({
+              id: Number(r.id),
+              batch_id: String(r.batch_id),
+              scene_id: String(r.scene_id),
+              spec: r.spec,
+              created_at: String(r.created_at || ""),
+            })),
+          );
+        }
+      } catch {}
+      setSavedLoading(false);
+    })();
+  }, [apiBase, router.query?.batch_id, router.query?.scene_id]);
 
   // Sync form -> scene -> json preview
   useEffect(() => {
@@ -747,6 +789,55 @@ export default function ScenesPlanPage() {
           defaultId="json"
         />
       </Card>
+      {savedSpecs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Saved scene specs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {savedLoading ? (
+              <div className="text-sm text-gray-600">Loading…</div>
+            ) : (
+              <div className="space-y-2 text-xs">
+                {savedSpecs.map((r) => (
+                  <div key={r.id} className="rounded border p-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default">{r.scene_id}</Badge>
+                        <span className="text-gray-600">batch</span>
+                        <span className="font-mono">{r.batch_id}</span>
+                      </div>
+                      <button
+                        className="rounded border px-2 py-1"
+                        onClick={() => {
+                          const pretty = JSON.stringify(r.spec, null, 2);
+                          setJsonText(pretty);
+                          setScene(r.spec);
+                          setForm(formFromScene(r.spec));
+                          setShowDiff(false);
+                          if (editorRef.current)
+                            editorRef.current.setValue(pretty);
+                          validateSceneObject(r.spec);
+                          show({
+                            title: "Loaded into editor",
+                            variant: "success",
+                          });
+                        }}
+                        aria-label="Load into editor"
+                      >
+                        Load into editor
+                      </button>
+                    </div>
+                    <pre className="mt-2 max-h-48 overflow-auto bg-gray-50 rounded p-2">
+                      {JSON.stringify(r.spec, null, 2)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -851,6 +851,19 @@ export async function insertSceneImageLine(row: {
   params?: Record<string, unknown> | null;
   job_id?: string | null;
 }) {
+  let validatedJobId = row.job_id || null;
+
+  // Validate job_id exists if provided
+  if (row.job_id) {
+    const jobCheck = await pool.query(`select id from jobs where id = $1`, [
+      row.job_id,
+    ]);
+
+    if (jobCheck.rows.length === 0) {
+      throw new Error(`Job not found: ${row.job_id}`);
+    }
+  }
+
   await pool.query(
     `insert into scene_images (scene_id, image_url, seed, model_version, params, job_id)
      values ($1, $2, $3, $4, $5, $6)`,
@@ -860,7 +873,7 @@ export async function insertSceneImageLine(row: {
       row.seed ?? null,
       row.model_version ?? null,
       row.params ? JSON.stringify(row.params) : null,
-      row.job_id || null,
+      validatedJobId,
     ],
   );
 }

@@ -143,7 +143,7 @@ export default function ScenesEditorPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-gray-50">
+    <main className="min-h-dvh">
       <div className="mx-auto max-w-6xl p-6 space-y-6">
         <PageHeader
           title="Scenes"
