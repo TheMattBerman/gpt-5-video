@@ -174,6 +174,11 @@ export default function HooksPage() {
           if (data.status === "succeeded") {
             setMineProgress("done");
             setMineErrorCat("");
+            if (data.id) {
+              setLastMineId(String(data.id));
+              // Auto-refresh corpus on completion
+              void refreshCorpusWithId(String(data.id));
+            }
           }
           if (data.status === "failed") {
             setMineProgress("failed");
@@ -190,6 +195,14 @@ export default function HooksPage() {
           if (data.status === "succeeded") {
             setSynthProgress("done");
             setSynthErrorCat("");
+            if (data.id) {
+              setLastSynthId(String(data.id));
+              // Auto-refresh synthesized hooks on completion
+              void refreshSynthWithIds({
+                synthId: String(data.id),
+                mineId: lastMineId,
+              });
+            }
           }
           if (data.status === "failed") {
             setSynthProgress("failed");
@@ -245,10 +258,44 @@ export default function HooksPage() {
     setCorpus(Array.isArray(data.items) ? data.items : []);
   }
 
+  // Helper to refresh corpus for a specific mine id (used by SSE auto-refresh)
+  async function refreshCorpusWithId(mineId: string) {
+    const params = new URLSearchParams();
+    if (mineId) params.set("mine_id", mineId);
+    params.set("limit", String(corpusPage.limit));
+    params.set("offset", String(corpusPage.offset));
+    if (corpusSort) params.set("sort", corpusSort);
+    const res = await fetch(`${apiBase}/hooks/corpus?${params.toString()}`);
+    const data = await res.json();
+    setCorpus(Array.isArray(data.items) ? data.items : []);
+  }
+
   async function refreshSynth() {
     const params = new URLSearchParams();
     if (lastSynthId) params.set("synth_id", lastSynthId);
     if (lastMineId) params.set("mine_id", lastMineId);
+    params.set("limit", String(synthPage.limit));
+    params.set("offset", String(synthPage.offset));
+    if (synthSort) params.set("sort", synthSort);
+    if (synthApprovedFilter === "approved") params.set("approved", "true");
+    if (synthApprovedFilter === "unapproved") params.set("approved", "false");
+    if (synthIcp.trim()) params.set("icp", synthIcp.trim());
+    const res = await fetch(`${apiBase}/hooks/synth?${params.toString()}`);
+    const data = await res.json();
+    setSynth(Array.isArray(data.items) ? data.items : []);
+  }
+
+  // Helper to refresh synth for specific ids
+  async function refreshSynthWithIds({
+    synthId,
+    mineId,
+  }: {
+    synthId?: string;
+    mineId?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (synthId) params.set("synth_id", synthId);
+    if (mineId) params.set("mine_id", mineId);
     params.set("limit", String(synthPage.limit));
     params.set("offset", String(synthPage.offset));
     if (synthSort) params.set("sort", synthSort);
