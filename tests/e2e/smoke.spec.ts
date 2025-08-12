@@ -1,17 +1,16 @@
 import { test, expect } from "@playwright/test";
 
-const GUI_BASE = process.env.GUI_BASE || "http://localhost:3000";
-
 test.describe("Smoke", () => {
   test("dashboard tiles render and SSE ping updates", async ({ page }) => {
-    await page.goto(GUI_BASE);
+    await page.goto("/");
     await expect(page.getByText("All-Replicate Content Engine")).toBeVisible();
-    await expect(page.getByText("Dashboard")).toBeVisible();
+    // Sidebar link may be visually hidden on small view; assert existence instead of visible
+    await expect(page.locator('a:has-text("Dashboard")').first()).toHaveCount(
+      1,
+    );
     const sseLocator = page.getByText(/SSE status:/);
     await expect(sseLocator).toBeVisible();
-    // Within 5s, ping should update
     const initial = await sseLocator.textContent();
-    // retry up to ~6s to observe change
     let changed = false;
     for (let i = 0; i < 6; i++) {
       await page.waitForTimeout(1000);
@@ -22,30 +21,27 @@ test.describe("Smoke", () => {
       }
     }
     expect(changed).toBeTruthy();
-
-    // KPI tile should update after a synthetic job event (if available); otherwise, assert tile presence
-    const kpiTile = page.getByText(/In-progress jobs/i);
+    const kpiTile = page.getByText(/In-progress jobs/i).first();
     await expect(kpiTile).toBeVisible();
   });
 
   test("Scenes Plan form: invalid -> errors; valid -> submit enabled", async ({
     page,
   }) => {
-    await page.goto(`${GUI_BASE}/scenes-plan`);
+    await page.goto("/scenes-plan");
     await expect(
-      page.getByRole("heading", { name: "Scenes Plan" }),
+      page.getByRole("heading", { name: "Scenes Plan" }).first(),
     ).toBeVisible();
-    // Switch to Form tab
-    await page.getByRole("button", { name: "Form" }).click();
-    // Clear required fields to trigger errors
+    await page.getByRole("button", { name: "Form", exact: true }).click();
     const sceneId = page.locator("#scene_id");
     await sceneId.fill("");
     const duration = page.locator("#duration_s");
     await duration.fill("");
-    // Submit should be disabled
-    const submitBtn = page.getByRole("button", { name: "Submit Plan" });
+    const submitBtn = page.getByRole("button", {
+      name: "Submit Plan",
+      exact: true,
+    });
     await expect(submitBtn).toBeDisabled();
-    // Fill minimal valid fields
     await sceneId.fill("hook1_s1");
     await duration.fill("2.0");
     await page.locator("#composition").fill("tight mid on mascot");
@@ -53,23 +49,25 @@ test.describe("Smoke", () => {
     await page
       .locator("#character_reference_image")
       .fill("https://example.com/mascot.png");
-    // Submit should be enabled
     await expect(submitBtn).toBeEnabled();
   });
 
   test("Scenes Render: queue single and batch", async ({ page }) => {
-    await page.goto(`${GUI_BASE}/scenes-render`);
+    await page.goto("/scenes-render");
     await expect(
-      page.getByRole("heading", { name: "Scenes Render" }),
+      page.getByRole("heading", { name: "Scenes Render" }).first(),
     ).toBeVisible();
-    // Insert preset, render
-    await page.getByRole("button", { name: "Insert Ideogram preset" }).click();
-    const renderBtn = page.getByRole("button", { name: "Render" });
+    await page
+      .getByRole("button", { name: "Insert Ideogram preset", exact: true })
+      .click();
+    const renderBtn = page
+      .getByRole("button", { name: "Render", exact: true })
+      .first();
     await renderBtn.click();
-    // Toast could appear; just assert Outputs section exists eventually or Live status present
     await expect(page.getByText(/Live status/)).toBeVisible();
-    // Queue batch
-    const batchBtn = page.getByRole("button", { name: "Queue 15 renders" });
+    const batchBtn = page
+      .getByRole("button", { name: "Queue 15 renders", exact: true })
+      .first();
     await expect(batchBtn).toBeEnabled();
     await batchBtn.click();
   });

@@ -1,4 +1,4 @@
-import { HTMLAttributes } from "react";
+import { HTMLAttributes, ThHTMLAttributes, TdHTMLAttributes } from "react";
 
 export function Table({
   className = "",
@@ -26,14 +26,14 @@ export function TRow({
 export function TH({
   className = "",
   ...props
-}: HTMLAttributes<HTMLTableCellElement>) {
+}: ThHTMLAttributes<HTMLTableCellElement>) {
   return <th className={`px-2 py-1 ${className}`} {...props} />;
 }
 
 export function TD({
   className = "",
   ...props
-}: HTMLAttributes<HTMLTableCellElement>) {
+}: TdHTMLAttributes<HTMLTableCellElement>) {
   return <td className={`px-2 py-1 ${className}`} {...props} />;
 }
 

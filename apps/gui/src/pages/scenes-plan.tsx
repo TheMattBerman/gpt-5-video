@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/Toast";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -62,6 +63,7 @@ export default function ScenesPlanPage() {
     () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
     [],
   );
+  const router = useRouter();
   const { show } = useToast();
   const validateLine = useMemo(
     () => ajv.compile(sceneSpecsLineSchema as any),
@@ -85,6 +87,23 @@ export default function ScenesPlanPage() {
   const [isValid, setIsValid] = useState<boolean>(true);
   const editorRef = useRef<any>(null);
   const [submitBusy, setSubmitBusy] = useState<boolean>(false);
+
+  // Prefill from query param
+  useEffect(() => {
+    const q = router.query?.prefill;
+    if (!q || Array.isArray(q)) return;
+    try {
+      const decoded = decodeURIComponent(q);
+      const parsed = JSON.parse(decoded);
+      if (validateSceneObject(parsed)) {
+        setScene(parsed);
+        const pretty = JSON.stringify(parsed, null, 2);
+        setJsonText(pretty);
+        setOriginalText(pretty);
+        setForm(formFromScene(parsed));
+      }
+    } catch {}
+  }, [router.query]);
 
   // Sync form -> scene -> json preview
   useEffect(() => {
@@ -253,14 +272,11 @@ export default function ScenesPlanPage() {
             </div>
           }
         />
-        <header className="flex items-center justify-between">
-          <h1 className="sr-only">Scenes Plan</h1>
-          <nav className="flex gap-4 text-sm">
-            <Link className="text-blue-600 underline" href="/">
-              Dashboard
-            </Link>
-          </nav>
-        </header>
+        <nav className="flex gap-4 text-sm">
+          <Link className="text-blue-600 underline" href="/">
+            Dashboard
+          </Link>
+        </nav>
         <section className="rounded border bg-white p-4">
           <Tabs
             tabs={[

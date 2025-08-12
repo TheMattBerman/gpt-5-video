@@ -1,9 +1,25 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import PageHeader from "../components/PageHeader";
 import { useEffect, useMemo, useState } from "react";
 import { addJob, updateJob } from "../lib/jobs";
 import { fetchWithAuth } from "../lib/http";
 import { useToast } from "../components/Toast";
+import {
+  Badge,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Chip,
+  EmptyState,
+  Table,
+  TD,
+  TH,
+  THead,
+  TRow,
+  Tooltip,
+} from "../components/ui";
 
 type HookCorpusRow = {
   id: number;
@@ -34,6 +50,7 @@ type HookSynthRow = {
 };
 
 export default function HooksPage() {
+  const router = useRouter();
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
     [],
@@ -91,6 +108,8 @@ export default function HooksPage() {
   const [synthProgress, setSynthProgress] = useState<string>("");
   const [synthErrorCat, setSynthErrorCat] = useState<string>("");
   const [mineErrorCat, setMineErrorCat] = useState<string>("");
+  const [mineAttemptCount, setMineAttemptCount] = useState<number>(0);
+  const [synthAttemptCount, setSynthAttemptCount] = useState<number>(0);
   const [corpusPage, setCorpusPage] = useState<{
     limit: number;
     offset: number;
@@ -108,6 +127,27 @@ export default function HooksPage() {
   }>(() => ({ open: false }));
   const [corpusSort, setCorpusSort] = useState<string>("created_at:desc");
   const [synthSort, setSynthSort] = useState<string>("created_at:desc");
+  const [search, setSearch] = useState<string>("");
+  const [mineDialogOpen, setMineDialogOpen] = useState<boolean>(false);
+  const [synthDialogOpen, setSynthDialogOpen] = useState<boolean>(false);
+  const [synthDialogIcp, setSynthDialogIcp] = useState<string>("");
+  const [synthDialogCorpusId, setSynthDialogCorpusId] = useState<string>("");
+  // Derived filters (toolbar chips)
+  const availableIcps = useMemo(
+    () =>
+      Array.from(new Set(synth.map((s) => String(s.icp || "").trim())))
+        .filter(Boolean)
+        .slice(0, 6),
+    [synth],
+  );
+  const [synthAngleFilter, setSynthAngleFilter] = useState<
+    "all" | "contrarian" | "pattern_interrupt" | "howto" | "general" | "insight"
+  >("all");
+  const [guardrails, setGuardrails] = useState<{
+    max_concurrency: number;
+    max_cost_per_batch_usd: number;
+  } | null>(null);
+  const [processingCount, setProcessingCount] = useState<number>(0);
   useEffect(() => {
     (async () => {
       try {
@@ -138,6 +178,8 @@ export default function HooksPage() {
             setMineProgress("failed");
             setMineErrorCat(String(data.error_category || ""));
           }
+          if (typeof data.attempt_count === "number")
+            setMineAttemptCount(data.attempt_count);
         }
         if (data?.type === "hooks_synthesize") {
           if (data.status === "processing" && data.progress)
@@ -152,6 +194,8 @@ export default function HooksPage() {
             setSynthProgress("failed");
             setSynthErrorCat(String(data.error_category || ""));
           }
+          if (typeof data.attempt_count === "number")
+            setSynthAttemptCount(data.attempt_count);
         }
       } catch {}
     };
@@ -159,6 +203,33 @@ export default function HooksPage() {
     return () => {
       es.removeEventListener("job", onJob as any);
       es.close();
+    };
+  }, [apiBase]);
+
+  // Guardrails and processing count for non-blocking warning
+  useEffect(() => {
+    let cancelled = false;
+    const fetchInfo = async () => {
+      try {
+        const [gRes, jRes] = await Promise.all([
+          fetch(`${apiBase}/settings/guardrails`),
+          fetch(`${apiBase}/jobs/recent?limit=50`),
+        ]);
+        if (!cancelled && gRes.ok) setGuardrails(await gRes.json());
+        if (!cancelled && jRes.ok) {
+          const data = await jRes.json();
+          const processing = (
+            Array.isArray(data.items) ? data.items : []
+          ).filter((j: any) => j.status === "processing").length;
+          setProcessingCount(processing);
+        }
+      } catch {}
+    };
+    void fetchInfo();
+    const id = setInterval(fetchInfo, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
     };
   }, [apiBase]);
 
@@ -188,6 +259,63 @@ export default function HooksPage() {
     setSynth(Array.isArray(data.items) ? data.items : []);
   }
 
+  const corpusFiltered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return corpus;
+    return corpus.filter((c) =>
+      String(c.caption_or_transcript || "")
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [search, corpus]);
+
+  const synthFiltered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let rows = synth;
+    if (synthAngleFilter !== "all") {
+      rows = rows.filter(
+        (h) => String(h.angle || "").toLowerCase() === synthAngleFilter,
+      );
+    }
+    if (synthIcp.trim()) {
+      rows = rows.filter(
+        (h) =>
+          String(h.icp || "").toLowerCase() === synthIcp.trim().toLowerCase(),
+      );
+    }
+    if (q) {
+      rows = rows.filter((h) =>
+        String(h.edited_hook_text || h.hook_text || "")
+          .toLowerCase()
+          .includes(q),
+      );
+    }
+    return rows;
+  }, [search, synth, synthAngleFilter, synthIcp]);
+
+  function planScenesFromHook(h: HookSynthRow) {
+    const text = String(h.edited_hook_text || h.hook_text || "");
+    const composition =
+      text.length > 0 ? "tight mid on subject, text plate right" : "mid shot";
+    const scene = {
+      scene_id: `hook_${h.id}_s1`,
+      duration_s: 2.0,
+      composition,
+      props: [],
+      overlays: [],
+      model: "ideogram-character",
+      model_inputs: {
+        prompt: text.slice(0, 180),
+        character_reference_image: "",
+        aspect_ratio: "9:16",
+        rendering_speed: "Default",
+      },
+      audio: { dialogue: [], vo_prompt: "" },
+    } as any;
+    const payload = encodeURIComponent(JSON.stringify(scene));
+    void router.push(`/scenes-plan?prefill=${payload}`);
+  }
+
   useEffect(() => {
     try {
       localStorage.setItem("gpt5video_hooks_sources", JSON.stringify(sources));
@@ -208,250 +336,509 @@ export default function HooksPage() {
     );
   return (
     <main className="min-h-dvh bg-gray-50">
-      <div className="mx-auto max-w-4xl p-6 space-y-6">
+      <div className="mx-auto max-w-5xl p-6 space-y-6">
         <PageHeader
           title="Hooks"
           description="Set up sources, mine and synthesize hooks. Approve or edit before planning scenes."
         />
-        <header className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Hooks</h1>
-          <nav className="flex gap-4 text-sm">
-            <Link href="/" className="text-blue-600 underline">
-              Dashboard
-            </Link>
-            <Link href="/brand" className="text-blue-600 underline">
-              Brand
-            </Link>
-          </nav>
-        </header>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {lastMineId && (
+            <Badge variant="info" className="flex items-center gap-1">
+              <span>mine</span>
+              <span className="font-mono">{lastMineId}</span>
+              {mineProgress && <span>· {mineProgress}</span>}
+              {mineAttemptCount ? (
+                <span>· attempts {mineAttemptCount}</span>
+              ) : null}
+            </Badge>
+          )}
+          {lastSynthId && (
+            <Badge variant="info" className="flex items-center gap-1">
+              <span>synth</span>
+              <span className="font-mono">{lastSynthId}</span>
+              {synthProgress && <span>· {synthProgress}</span>}
+              {synthAttemptCount ? (
+                <span>· attempts {synthAttemptCount}</span>
+              ) : null}
+            </Badge>
+          )}
+          {guardrails &&
+            processingCount >= Math.max(1, guardrails.max_concurrency - 1) && (
+              <Badge variant="warning">Approaching concurrency cap</Badge>
+            )}
+        </div>
+        <nav className="flex gap-4 text-sm">
+          <Link href="/" className="text-blue-600 underline">
+            Dashboard
+          </Link>
+          <Link href="/brand" className="text-blue-600 underline">
+            Brand
+          </Link>
+        </nav>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Toolbar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                className="rounded border px-2 py-1 text-sm"
+                placeholder="Search caption or hook text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <div className="ml-2 flex items-center gap-2">
+                <Chip
+                  selected={corpusSort === "created_at:desc"}
+                  onClick={() => setCorpusSort("created_at:desc")}
+                >
+                  Corpus newest
+                </Chip>
+                <Chip
+                  selected={corpusSort === "created_at:asc"}
+                  onClick={() => setCorpusSort("created_at:asc")}
+                >
+                  Corpus oldest
+                </Chip>
+                <Chip
+                  selected={synthSort === "created_at:desc"}
+                  onClick={() => setSynthSort("created_at:desc")}
+                >
+                  Synth newest
+                </Chip>
+                <Chip
+                  selected={synthSort === "created_at:asc"}
+                  onClick={() => setSynthSort("created_at:asc")}
+                >
+                  Synth oldest
+                </Chip>
+              </div>
+              {/* Approved filter chips */}
+              <div className="ml-2 flex items-center gap-1">
+                <Chip
+                  selected={synthApprovedFilter === "all"}
+                  onClick={() => setSynthApprovedFilter("all")}
+                >
+                  All
+                </Chip>
+                <Chip
+                  selected={synthApprovedFilter === "approved"}
+                  onClick={() => setSynthApprovedFilter("approved")}
+                >
+                  Approved
+                </Chip>
+                <Chip
+                  selected={synthApprovedFilter === "unapproved"}
+                  onClick={() => setSynthApprovedFilter("unapproved")}
+                >
+                  Pending/Rejected
+                </Chip>
+              </div>
+              {/* Angle/format chips */}
+              <div className="ml-2 flex items-center gap-1">
+                {(
+                  [
+                    "all",
+                    "contrarian",
+                    "pattern_interrupt",
+                    "howto",
+                    "general",
+                    "insight",
+                  ] as const
+                ).map((k) => (
+                  <Chip
+                    key={k}
+                    selected={synthAngleFilter === k}
+                    onClick={() => setSynthAngleFilter(k)}
+                  >
+                    {k}
+                  </Chip>
+                ))}
+              </div>
+              {/* ICP chips (dynamic) */}
+              {!!availableIcps.length && (
+                <div className="ml-2 flex items-center gap-1">
+                  <Chip selected={!synthIcp} onClick={() => setSynthIcp("")}>
+                    ICP: all
+                  </Chip>
+                  {availableIcps.map((icp) => (
+                    <Chip
+                      key={icp}
+                      selected={synthIcp.toLowerCase() === icp.toLowerCase()}
+                      onClick={() => setSynthIcp(icp)}
+                    >
+                      {icp}
+                    </Chip>
+                  ))}
+                </div>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  className="rounded border px-2 py-1 text-sm"
+                  onClick={() => setMineDialogOpen(true)}
+                >
+                  Mine Hooks
+                </button>
+                <button
+                  className="rounded border px-2 py-1 text-sm"
+                  onClick={() => {
+                    setSynthDialogIcp("");
+                    setSynthDialogCorpusId(lastMineId || "");
+                    setSynthDialogOpen(true);
+                  }}
+                >
+                  Synthesize
+                </button>
+                <button
+                  className="rounded border px-2 py-1 text-sm"
+                  onClick={() => {
+                    setSources([
+                      {
+                        platform: "tiktok",
+                        handle_or_url: "@creator",
+                        limit: 10,
+                      },
+                      {
+                        platform: "youtube",
+                        handle_or_url: "https://youtube.com/@channel",
+                        limit: 10,
+                      },
+                    ]);
+                    setMineDialogOpen(true);
+                  }}
+                >
+                  Mine sample
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        {synthDialogOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 pointer-events-none"
+            role="presentation"
+          >
+            <div
+              className="pointer-events-auto w-[520px] rounded border bg-white p-4 space-y-3 shadow-md"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Synthesize Hooks"
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">Synthesize Hooks</div>
+                <button
+                  className="text-xs opacity-70 hover:opacity-100"
+                  onClick={() => setSynthDialogOpen(false)}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                <label className="text-sm">
+                  <span className="text-gray-700">Corpus ID</span>
+                  <input
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm font-mono"
+                    placeholder="hooks_mine_..."
+                    value={synthDialogCorpusId}
+                    onChange={(e) => setSynthDialogCorpusId(e.target.value)}
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="text-gray-700">ICP (optional)</span>
+                  <input
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    placeholder="e.g. DTC operators"
+                    value={synthDialogIcp}
+                    onChange={(e) => setSynthDialogIcp(e.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  className="rounded border px-3 py-1.5 text-sm"
+                  onClick={() => setSynthDialogOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  data-testid="synth-start"
+                  className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
+                  disabled={!synthDialogCorpusId.trim()}
+                  onClick={async () => {
+                    const provisionalId = `hooks_synthesize_${Date.now()}`;
+                    addJob({
+                      id: provisionalId,
+                      type: "hooks_synthesize",
+                      status: "queued",
+                      createdAt: Date.now(),
+                    });
+                    try {
+                      const res = await fetchWithAuth(
+                        `${apiBase}/hooks/synthesize`,
+                        {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            corpus_id: synthDialogCorpusId.trim(),
+                            icp: synthDialogIcp.trim() || undefined,
+                          }),
+                        },
+                      );
+                      const data = await res.json();
+                      if (res.ok) {
+                        setLastSynthId(String(data?.id || ""));
+                        show({
+                          title: "Synthesis started",
+                          description: String(data?.id || ""),
+                          variant: "success",
+                        });
+                        updateJob(provisionalId, {
+                          status: "succeeded",
+                          completedAt: Date.now(),
+                          runId: data?.run_id,
+                        });
+                        setSynthDialogOpen(false);
+                      } else {
+                        updateJob(provisionalId, {
+                          status: "failed",
+                          completedAt: Date.now(),
+                          error: String(data?.error || res.statusText),
+                        });
+                        show({
+                          title: "Synthesize failed",
+                          description: String(data?.error || res.statusText),
+                          variant: "error",
+                        });
+                      }
+                    } catch (e: any) {
+                      updateJob(provisionalId, {
+                        status: "failed",
+                        completedAt: Date.now(),
+                        error: String(e?.message || e),
+                      });
+                      show({
+                        title: "Synthesize failed",
+                        description: String(e?.message || e),
+                        variant: "error",
+                      });
+                    }
+                  }}
+                  aria-label="Start"
+                >
+                  Start
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {mineDialogOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 pointer-events-none"
+            role="presentation"
+          >
+            <div
+              className="pointer-events-auto w-[640px] rounded border bg-white p-4 space-y-3 shadow-md"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mine Hooks (sources)"
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">Mine Hooks (sources)</div>
+                <button
+                  className="text-xs opacity-70 hover:opacity-100"
+                  onClick={() => setMineDialogOpen(false)}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-4 gap-3 items-end">
+                <label className="text-sm">
+                  <span className="text-gray-700">Platform</span>
+                  <select
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value as any)}
+                  >
+                    <option value="tiktok">tiktok</option>
+                    <option value="instagram">instagram</option>
+                    <option value="youtube">youtube</option>
+                  </select>
+                </label>
+                <label className="text-sm col-span-2">
+                  <span className="text-gray-700">Handle or URL</span>
+                  <input
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    value={handleOrUrl}
+                    onChange={(e) => setHandleOrUrl(e.target.value)}
+                    placeholder="@creator or https://..."
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="text-gray-700">Limit</span>
+                  <input
+                    type="number"
+                    min={1}
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    value={String(limit)}
+                    onChange={(e) =>
+                      setLimit(Math.max(1, Number(e.target.value || 0)))
+                    }
+                  />
+                </label>
+                <label className="text-sm col-span-4">
+                  <span className="text-gray-700">Notes (optional)</span>
+                  <input
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="any context"
+                  />
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="rounded border px-3 py-1.5 text-sm"
+                  onClick={() => {
+                    if (!handleOrUrl.trim() || !platform || limit <= 0) return;
+                    setSources((prev) => [
+                      {
+                        platform,
+                        handle_or_url: handleOrUrl.trim(),
+                        limit,
+                        notes: notes.trim() || undefined,
+                      },
+                      ...prev,
+                    ]);
+                    setHandleOrUrl("");
+                    setNotes("");
+                  }}
+                >
+                  Add Source
+                </button>
+                <button
+                  data-testid="mine-start"
+                  className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
+                  disabled={!formValid}
+                  onClick={async () => {
+                    const payload = {
+                      sources: sources.map((s) => ({
+                        platform: s.platform,
+                        handle: s.handle_or_url,
+                        limit: s.limit,
+                        notes: s.notes,
+                      })),
+                    };
+                    const provisionalId = `hooks_mine_${Date.now()}`;
+                    addJob({
+                      id: provisionalId,
+                      type: "hooks_mine",
+                      status: "queued",
+                      createdAt: Date.now(),
+                    });
+                    try {
+                      const res = await fetchWithAuth(`${apiBase}/hooks/mine`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        setLastMineId(String(data?.id || ""));
+                        setCorpus(Array.isArray(data?.items) ? data.items : []);
+                        updateJob(provisionalId, {
+                          status: "succeeded",
+                          completedAt: Date.now(),
+                          runId: data?.run_id,
+                        });
+                        show({
+                          title: "Mining started",
+                          description: String(data?.id || ""),
+                          variant: "success",
+                        });
+                      } else {
+                        updateJob(provisionalId, {
+                          status: "failed",
+                          completedAt: Date.now(),
+                          error: String(data?.error || res.statusText),
+                        });
+                        show({
+                          title: "Mine failed",
+                          description: String(data?.error || res.statusText),
+                          variant: "error",
+                        });
+                      }
+                    } catch (e: any) {
+                      updateJob(provisionalId, {
+                        status: "failed",
+                        completedAt: Date.now(),
+                        error: String(e?.message || e),
+                      });
+                      show({
+                        title: "Mine failed",
+                        description: String(e?.message || e),
+                        variant: "error",
+                      });
+                    }
+                  }}
+                >
+                  Mine Hooks
+                </button>
+              </div>
+              <div className="overflow-auto">
+                <Table>
+                  <THead>
+                    <TRow className="text-left text-gray-600">
+                      <TH>Platform</TH>
+                      <TH>Handle/URL</TH>
+                      <TH>Limit</TH>
+                      <TH>Notes</TH>
+                      <TH>Actions</TH>
+                    </TRow>
+                  </THead>
+                  <tbody>
+                    {sources.map((s, idx) => (
+                      <TRow
+                        key={`${s.platform}-${s.handle_or_url}-${idx}`}
+                        className="border-t"
+                      >
+                        <TD>{s.platform}</TD>
+                        <TD className="font-mono">{s.handle_or_url}</TD>
+                        <TD>{s.limit}</TD>
+                        <TD className="text-gray-600">{s.notes || ""}</TD>
+                        <TD>
+                          <button
+                            className="text-red-600 underline text-xs"
+                            onClick={() =>
+                              setSources((prev) =>
+                                prev.filter((_, i) => i !== idx),
+                              )
+                            }
+                            aria-label="Remove source"
+                          >
+                            remove
+                          </button>
+                        </TD>
+                      </TRow>
+                    ))}
+                    {sources.length === 0 && (
+                      <TRow>
+                        <TD className="px-2 py-3 text-gray-500" colSpan={5}>
+                          No sources added
+                        </TD>
+                      </TRow>
+                    )}
+                  </tbody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        )}
 
         <section className="rounded border bg-white p-4 space-y-3">
-          <div className="text-sm font-medium">
-            Recent assets (prefix: dev/)
-          </div>
-          <div className="overflow-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-600">
-                  <th className="px-2 py-1">Key</th>
-                  <th className="px-2 py-1">Size</th>
-                  <th className="px-2 py-1">Modified</th>
-                  <th className="px-2 py-1">Preview</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assets.map((a) => (
-                  <tr key={a.key} className="border-t">
-                    <td className="px-2 py-1 font-mono">{a.key}</td>
-                    <td className="px-2 py-1">{a.size ?? ""}</td>
-                    <td className="px-2 py-1 text-gray-600">
-                      {a.last_modified ?? ""}
-                    </td>
-                    <td className="px-2 py-1">
-                      {a.preview_url ? (
-                        <a
-                          className="text-blue-600 underline"
-                          href={a.preview_url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          open
-                        </a>
-                      ) : (
-                        ""
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {assets.length === 0 && (
-                  <tr>
-                    <td className="px-2 py-3 text-gray-500" colSpan={4}>
-                      No assets found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <section className="rounded border bg-white p-4 space-y-3">
-          <div className="text-sm font-medium">Source setup</div>
-          <div className="grid grid-cols-4 gap-3 items-end">
-            <label className="text-sm">
-              <span className="text-gray-700">Platform</span>
-              <select
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                value={platform}
-                onChange={(e) => setPlatform(e.target.value as any)}
-              >
-                <option value="tiktok">tiktok</option>
-                <option value="instagram">instagram</option>
-                <option value="youtube">youtube</option>
-              </select>
-            </label>
-            <label className="text-sm col-span-2">
-              <span className="text-gray-700">Handle or URL</span>
-              <input
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                value={handleOrUrl}
-                onChange={(e) => setHandleOrUrl(e.target.value)}
-                placeholder="@creator or https://..."
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-gray-700">Limit</span>
-              <input
-                type="number"
-                min={1}
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                value={String(limit)}
-                onChange={(e) =>
-                  setLimit(Math.max(1, Number(e.target.value || 0)))
-                }
-              />
-            </label>
-            <label className="text-sm col-span-4">
-              <span className="text-gray-700">Notes (optional)</span>
-              <input
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="any context"
-              />
-            </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              className="rounded border px-3 py-1.5 text-sm"
-              onClick={() => {
-                if (!handleOrUrl.trim() || !platform || limit <= 0) return;
-                setSources((prev) => [
-                  {
-                    platform,
-                    handle_or_url: handleOrUrl.trim(),
-                    limit,
-                    notes: notes.trim() || undefined,
-                  },
-                  ...prev,
-                ]);
-                setHandleOrUrl("");
-                setNotes("");
-              }}
-            >
-              Add Source
-            </button>
-            <button
-              className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
-              disabled={!formValid}
-              onClick={async () => {
-                const payload = {
-                  sources: sources.map((s) => ({
-                    platform: s.platform,
-                    handle: s.handle_or_url,
-                    limit: s.limit,
-                    notes: s.notes,
-                  })),
-                };
-                const provisionalId = `hooks_mine_${Date.now()}`;
-                addJob({
-                  id: provisionalId,
-                  type: "hooks_mine",
-                  status: "queued",
-                  createdAt: Date.now(),
-                });
-                try {
-                  const res = await fetchWithAuth(`${apiBase}/hooks/mine`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                  });
-                  const data = await res.json();
-                  if (res.ok) {
-                    setLastMineId(String(data?.id || ""));
-                    setCorpus(Array.isArray(data?.items) ? data.items : []);
-                    updateJob(provisionalId, {
-                      status: "succeeded",
-                      completedAt: Date.now(),
-                      runId: data?.run_id,
-                    });
-                    show({
-                      title: "Mining started",
-                      description: String(data?.id || ""),
-                      variant: "success",
-                    });
-                  } else {
-                    updateJob(provisionalId, {
-                      status: "failed",
-                      completedAt: Date.now(),
-                      error: String(data?.error || res.statusText),
-                    });
-                    show({
-                      title: "Mine failed",
-                      description: String(data?.error || res.statusText),
-                      variant: "error",
-                    });
-                  }
-                } catch (e: any) {
-                  updateJob(provisionalId, {
-                    status: "failed",
-                    completedAt: Date.now(),
-                    error: String(e?.message || e),
-                  });
-                  show({
-                    title: "Mine failed",
-                    description: String(e?.message || e),
-                    variant: "error",
-                  });
-                }
-              }}
-            >
-              Mine Hooks
-            </button>
-          </div>
-          <div className="overflow-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-600">
-                  <th className="px-2 py-1">Platform</th>
-                  <th className="px-2 py-1">Handle/URL</th>
-                  <th className="px-2 py-1">Limit</th>
-                  <th className="px-2 py-1">Notes</th>
-                  <th className="px-2 py-1">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sources.map((s, idx) => (
-                  <tr
-                    key={`${s.platform}-${s.handle_or_url}-${idx}`}
-                    className="border-t"
-                  >
-                    <td className="px-2 py-1">{s.platform}</td>
-                    <td className="px-2 py-1 font-mono">{s.handle_or_url}</td>
-                    <td className="px-2 py-1">{s.limit}</td>
-                    <td className="px-2 py-1 text-gray-600">{s.notes || ""}</td>
-                    <td className="px-2 py-1">
-                      <button
-                        className="text-red-600 underline text-xs"
-                        onClick={() =>
-                          setSources((prev) => prev.filter((_, i) => i !== idx))
-                        }
-                      >
-                        remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {sources.length === 0 && (
-                  <tr>
-                    <td className="px-2 py-3 text-gray-500" colSpan={5}>
-                      No sources added
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-600">
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-600">
             <div className="flex items-center gap-2">
               <span>Last mine id:</span>
               <span className="font-mono">{lastMineId || "--"}</span>
@@ -513,57 +900,40 @@ export default function HooksPage() {
               </div>
             </div>
           </div>
-          {!!corpus.length && (
+          {corpusFiltered.length === 0 ? (
+            <EmptyState
+              title="No corpus yet"
+              description="Mine sources to build your corpus."
+              actions={
+                <button
+                  className="rounded bg-black px-3 py-1.5 text-white text-sm"
+                  onClick={() => setMineDialogOpen(true)}
+                >
+                  Mine Hooks
+                </button>
+              }
+            />
+          ) : (
             <div className="mt-3">
               <div className="text-sm font-medium mb-1">Corpus</div>
               <div className="overflow-auto">
-                <table className="min-w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-gray-600">
-                      <th
-                        className="px-2 py-1 cursor-pointer"
-                        onClick={() =>
-                          setCorpusSort((s) =>
-                            s === "created_at:asc"
-                              ? "created_at:desc"
-                              : "created_at:asc",
-                          )
-                        }
-                      >
-                        Platform
-                      </th>
-                      <th
-                        className="px-2 py-1 cursor-pointer"
-                        onClick={() =>
-                          setCorpusSort((s) =>
-                            s === "created_at:asc"
-                              ? "created_at:desc"
-                              : "created_at:asc",
-                          )
-                        }
-                      >
-                        Author
-                      </th>
-                      <th className="px-2 py-1">URL</th>
-                      <th
-                        className="px-2 py-1 cursor-pointer"
-                        onClick={() =>
-                          setCorpusSort((s) =>
-                            s === "views:asc" ? "views:desc" : "views:asc",
-                          )
-                        }
-                      >
-                        Views
-                      </th>
-                      <th className="px-2 py-1">Caption/Transcript</th>
-                    </tr>
-                  </thead>
+                <Table className="text-xs">
+                  <THead>
+                    <TRow className="text-left text-gray-600">
+                      <TH>Platform</TH>
+                      <TH>Author</TH>
+                      <TH>URL</TH>
+                      <TH>Format</TH>
+                      <TH>Latency (ms)</TH>
+                      <TH>Caption/Transcript</TH>
+                    </TRow>
+                  </THead>
                   <tbody>
-                    {corpus.map((c) => (
-                      <tr key={c.id} className="border-t align-top">
-                        <td className="px-2 py-1">{c.platform || ""}</td>
-                        <td className="px-2 py-1">{c.author || ""}</td>
-                        <td className="px-2 py-1">
+                    {corpusFiltered.map((c) => (
+                      <TRow key={c.id} className="border-t align-top">
+                        <TD>{c.platform || ""}</TD>
+                        <TD>{c.author || ""}</TD>
+                        <TD>
                           {c.url ? (
                             <a
                               className="text-blue-600 underline"
@@ -576,19 +946,18 @@ export default function HooksPage() {
                           ) : (
                             ""
                           )}
-                        </td>
-                        <td className="px-2 py-1">
-                          {Number((c.metrics || {}).views || 0)}
-                        </td>
-                        <td className="px-2 py-1">
-                          <div className="line-clamp-2 max-w-[360px]">
+                        </TD>
+                        <TD>{c.detected_format || ""}</TD>
+                        <TD>{Number((c.scrape_meta || {}).latency_ms || 0)}</TD>
+                        <TD>
+                          <div className="line-clamp-2 max-w-[420px]">
                             {c.caption_or_transcript || ""}
                           </div>
-                        </td>
-                      </tr>
+                        </TD>
+                      </TRow>
                     ))}
                   </tbody>
-                </table>
+                </Table>
               </div>
             </div>
           )}
@@ -709,11 +1078,14 @@ export default function HooksPage() {
                     status: "queued",
                     createdAt: Date.now(),
                   });
-                  const res = await fetch(`${apiBase}/hooks/synthesize`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(parsed),
-                  });
+                  const res = await fetchWithAuth(
+                    `${apiBase}/hooks/synthesize`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(parsed),
+                    },
+                  );
                   const data = await res.json();
                   setSynthResp({ ok: res.ok, data });
                   if (res.ok) {
@@ -829,96 +1201,104 @@ export default function HooksPage() {
                 </div>
               </div>
             </div>
-            {!!synth.length && (
+            {synthFiltered.length === 0 ? (
+              <EmptyState
+                title="No synthesized hooks yet"
+                description="Run synthesis to generate candidate hooks."
+                actions={
+                  <button
+                    className="rounded bg-black px-3 py-1.5 text-white text-sm"
+                    onClick={() => setSynthDialogOpen(true)}
+                  >
+                    Synthesize
+                  </button>
+                }
+              />
+            ) : (
               <div className="mt-2">
                 <div className="text-sm font-medium mb-1">
                   Synthesized hooks
                 </div>
                 <div className="overflow-auto">
-                  <table className="min-w-full text-xs">
-                    <thead>
-                      <tr className="text-left text-gray-600">
-                        <th
-                          className="px-2 py-1 cursor-pointer"
-                          onClick={() =>
-                            setSynthSort((s) =>
-                              s === "created_at:asc"
-                                ? "created_at:desc"
-                                : "created_at:asc",
-                            )
-                          }
-                        >
-                          Hook
-                        </th>
-                        <th
-                          className="px-2 py-1 cursor-pointer"
-                          onClick={() =>
-                            setSynthSort((s) =>
-                              s === "created_at:asc"
-                                ? "created_at:desc"
-                                : "created_at:asc",
-                            )
-                          }
-                        >
-                          Angle
-                        </th>
-                        <th
-                          className="px-2 py-1 cursor-pointer"
-                          onClick={() =>
-                            setSynthSort((s) =>
-                              s === "created_at:asc"
-                                ? "created_at:desc"
-                                : "created_at:asc",
-                            )
-                          }
-                        >
-                          ICP
-                        </th>
-                        <th
-                          className="px-2 py-1 cursor-pointer"
-                          onClick={() =>
-                            setSynthSort((s) =>
-                              s === "approved:asc"
-                                ? "approved:desc"
-                                : "approved:asc",
-                            )
-                          }
-                        >
-                          Approved
-                        </th>
-                        <th className="px-2 py-1">Actions</th>
-                      </tr>
-                    </thead>
+                  <Table className="text-xs">
+                    <THead>
+                      <TRow className="text-left text-gray-600">
+                        <TH>Hook</TH>
+                        <TH>Angle</TH>
+                        <TH>ICP</TH>
+                        <TH>Risk</TH>
+                        <TH>Inspo</TH>
+                        <TH>Status</TH>
+                        <TH>Actions</TH>
+                      </TRow>
+                    </THead>
                     <tbody>
-                      {synth.map((h) => (
-                        <tr key={h.id} className="border-t align-top">
-                          <td className="px-2 py-1 max-w-[360px]">
+                      {synthFiltered.map((h) => (
+                        <TRow key={h.id} className="border-t align-top">
+                          <TD className="max-w-[420px]">
                             <div
                               className="line-clamp-3"
                               title={h.hook_text || ""}
                             >
                               {h.edited_hook_text || h.hook_text || ""}
                             </div>
-                          </td>
-                          <td className="px-2 py-1">{h.angle || ""}</td>
-                          <td className="px-2 py-1">{h.icp || ""}</td>
-                          <td className="px-2 py-1">
-                            {h.approved ? "yes" : "no"}
-                          </td>
-                          <td className="px-2 py-1">
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="rounded border px-2 py-0.5"
-                                onClick={() =>
-                                  setSynthEdit({ open: true, row: h })
-                                }
+                            {h.edited_hook_text && (
+                              <div className="mt-1 text-[10px] text-gray-500">
+                                edited
+                              </div>
+                            )}
+                          </TD>
+                          <TD>{h.angle || ""}</TD>
+                          <TD>{h.icp || ""}</TD>
+                          <TD>{(h.risk_flags || [])?.join(", ")}</TD>
+                          <TD>
+                            {h.inspiration_url ? (
+                              <a
+                                className="text-blue-600 underline"
+                                href={h.inspiration_url}
+                                target="_blank"
+                                rel="noreferrer"
                               >
-                                Edit
-                              </button>
-                              {!h.approved && (
+                                link
+                              </a>
+                            ) : (
+                              ""
+                            )}
+                          </TD>
+                          <TD>
+                            {h.approved ? (
+                              <Badge variant="success">Approved</Badge>
+                            ) : (
+                              <Badge>Pending</Badge>
+                            )}
+                          </TD>
+                          <TD>
+                            <div className="flex items-center gap-2">
+                              <Tooltip label="Edit">
                                 <button
                                   className="rounded border px-2 py-0.5"
-                                  onClick={async () => {
+                                  onClick={() =>
+                                    setSynthEdit({ open: true, row: h })
+                                  }
+                                  aria-label="Edit hook"
+                                >
+                                  ✎
+                                </button>
+                              </Tooltip>
+                              <Tooltip label="Plan Scenes">
+                                <button
+                                  className="rounded border px-2 py-0.5"
+                                  onClick={() => planScenesFromHook(h)}
+                                  aria-label="Plan scenes from hook"
+                                >
+                                  🎬
+                                </button>
+                              </Tooltip>
+                              <label className="inline-flex items-center gap-1 text-[11px]">
+                                <input
+                                  type="checkbox"
+                                  checked={!!h.approved}
+                                  onChange={async (e) => {
                                     try {
                                       const res = await fetchWithAuth(
                                         `${apiBase}/hooks/synth/${h.id}`,
@@ -928,97 +1308,204 @@ export default function HooksPage() {
                                             "Content-Type": "application/json",
                                           },
                                           body: JSON.stringify({
-                                            approved: true,
+                                            approved: e.target.checked,
                                           }),
                                         },
                                       );
                                       if (!res.ok)
                                         throw new Error(String(res.statusText));
                                       show({
-                                        title: "Approved",
+                                        title: e.target.checked
+                                          ? "Approved"
+                                          : "Unapproved",
                                         variant: "success",
                                       });
                                       await refreshSynth();
                                     } catch (e: any) {
                                       show({
-                                        title: "Approve failed",
+                                        title: "Update failed",
                                         description: String(e?.message || e),
                                         variant: "error",
                                       });
                                     }
                                   }}
-                                >
-                                  Approve
-                                </button>
-                              )}
+                                  aria-label="Toggle approved"
+                                />
+                                Approved
+                              </label>
                             </div>
-                          </td>
-                        </tr>
+                          </TD>
+                        </TRow>
                       ))}
                     </tbody>
-                  </table>
+                  </Table>
                 </div>
               </div>
             )}
             {synthEdit.open && synthEdit.row && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-                <div className="w-[520px] rounded border bg-white p-4 space-y-3">
-                  <div className="text-sm font-medium">Edit hook</div>
-                  <textarea
-                    className="h-32 w-full rounded border p-2 text-sm"
-                    defaultValue={
-                      synthEdit.row.edited_hook_text ||
-                      synthEdit.row.hook_text ||
-                      ""
-                    }
-                    onChange={(e) =>
-                      setSynthEdit((prev) => ({
-                        ...prev,
-                        row: { ...prev.row!, edited_hook_text: e.target.value },
-                      }))
-                    }
-                  />
-                  <div className="flex items-center justify-end gap-2">
+              <div className="fixed inset-0 z-50">
+                <div
+                  className="absolute inset-0 bg-black/30"
+                  onClick={() => setSynthEdit({ open: false })}
+                />
+                <aside className="absolute right-0 top-0 h-full w-[420px] bg-white border-l shadow-md p-4 overflow-auto">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Approve / Edit</div>
                     <button
-                      className="rounded border px-3 py-1.5 text-sm"
+                      className="text-xs opacity-70 hover:opacity-100"
                       onClick={() => setSynthEdit({ open: false })}
+                      aria-label="Close drawer"
                     >
-                      Cancel
+                      ✕
                     </button>
-                    <button
-                      className="rounded bg-black px-3 py-1.5 text-white text-sm"
-                      onClick={async () => {
-                        try {
-                          const res = await fetchWithAuth(
-                            `${apiBase}/hooks/synth/${synthEdit.row!.id}`,
-                            {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
+                  </div>
+                  <div className="mt-3 space-y-3 text-sm">
+                    <label className="block">
+                      <span className="text-gray-700">Hook text</span>
+                      <textarea
+                        className="mt-1 h-28 w-full rounded border p-2 text-sm"
+                        value={
+                          synthEdit.row.edited_hook_text ||
+                          synthEdit.row.hook_text ||
+                          ""
+                        }
+                        onChange={(e) =>
+                          setSynthEdit((prev) => ({
+                            ...prev,
+                            row: {
+                              ...prev.row!,
+                              edited_hook_text: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-gray-700">Angle</span>
+                      <input
+                        className="mt-1 w-full rounded border px-2 py-1"
+                        value={synthEdit.row.angle || ""}
+                        onChange={(e) =>
+                          setSynthEdit((prev) => ({
+                            ...prev,
+                            row: { ...prev.row!, angle: e.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-gray-700">ICP</span>
+                      <input
+                        className="mt-1 w-full rounded border px-2 py-1"
+                        value={synthEdit.row.icp || ""}
+                        onChange={(e) =>
+                          setSynthEdit((prev) => ({
+                            ...prev,
+                            row: { ...prev.row!, icp: e.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-gray-700">
+                        Risk flags (comma-separated)
+                      </span>
+                      <input
+                        className="mt-1 w-full rounded border px-2 py-1"
+                        value={(synthEdit.row.risk_flags || []).join(", ")}
+                        onChange={(e) =>
+                          setSynthEdit((prev) => ({
+                            ...prev,
+                            row: {
+                              ...prev.row!,
+                              risk_flags: e.target.value
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean),
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={!!synthEdit.row.approved}
+                        onChange={(e) =>
+                          setSynthEdit((prev) => ({
+                            ...prev,
+                            row: { ...prev.row!, approved: e.target.checked },
+                          }))
+                        }
+                        aria-label="Approved"
+                      />
+                      Approved
+                    </label>
+                    <label className="block">
+                      <span className="text-gray-700">Note (optional)</span>
+                      <input
+                        className="mt-1 w-full rounded border px-2 py-1"
+                        placeholder="add a note (not saved)"
+                      />
+                    </label>
+                    <div className="flex items-center justify-between gap-2 pt-2">
+                      <button
+                        className="rounded border px-2 py-1 text-sm"
+                        onClick={() => planScenesFromHook(synthEdit.row!)}
+                      >
+                        Plan Scenes
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="rounded border px-3 py-1.5 text-sm"
+                          onClick={() => setSynthEdit({ open: false })}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className="rounded bg-black px-3 py-1.5 text-white text-sm"
+                          onClick={async () => {
+                            try {
+                              const body = {
                                 edited_hook_text:
                                   synthEdit.row!.edited_hook_text ||
                                   synthEdit.row!.hook_text ||
                                   "",
-                              }),
-                            },
-                          );
-                          if (!res.ok) throw new Error(String(res.statusText));
-                          setSynthEdit({ open: false });
-                          show({ title: "Saved", variant: "success" });
-                          await refreshSynth();
-                        } catch (e: any) {
-                          show({
-                            title: "Save failed",
-                            description: String(e?.message || e),
-                            variant: "error",
-                          });
-                        }
-                      }}
-                    >
-                      Save
-                    </button>
+                                angle: synthEdit.row!.angle,
+                                icp: synthEdit.row!.icp,
+                                risk_flags: synthEdit.row!.risk_flags || [],
+                                approved: synthEdit.row!.approved,
+                              };
+                              const res = await fetchWithAuth(
+                                `${apiBase}/hooks/synth/${synthEdit.row!.id}`,
+                                {
+                                  method: "PATCH",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify(body),
+                                },
+                              );
+                              if (!res.ok)
+                                throw new Error(String(res.statusText));
+                              setSynthEdit({ open: false });
+                              show({ title: "Saved", variant: "success" });
+                              await refreshSynth();
+                            } catch (e: any) {
+                              show({
+                                title: "Save failed",
+                                description: String(e?.message || e),
+                                variant: "error",
+                              });
+                            }
+                          }}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </aside>
               </div>
             )}
           </div>

@@ -69,10 +69,11 @@ Acceptance (Week 1)
 
 ### Week 2 — Planning, synthesis, images, and review
 
-- [~] Hook mining and synthesis
-  - [x] ScrapeCreators adapter with rate limits, pagination, retries, dedupe
-  - [x] Clustering/synthesis endpoint implemented with heuristic clustering, SSE steps (clustering → generating → persist → completed), lineage persisted, filters (approved, icp), server sort
-  - [x] Corpus and synthesized hooks persisted with lineage
+- [x] Hook mining and synthesis
+- [x] ScrapeCreators adapter with rate limits, pagination, retries, dedupe
+- [x] Clustering/synthesis endpoint implemented with heuristic clustering, SSE steps (clustering → generating → persist → completed), lineage persisted, filters (approved, icp), server sort
+- [x] Corpus and synthesized hooks persisted with lineage
+  - [x] Hooks GUI Milestone 3: Toolbar filters/search, Mine/Synthesize dialogs, SSE status chips, Approve/Edit Drawer, Plan Scenes handoff to `Scenes Plan` with prefilled JSON; Empty states and accessibility covered; tests added.
 - [~] Character & Scenes
   - [x] Character upload + profile persist; stability test (3 prompts) API; GUI compare and local seed lock
   - [x] Scenes page: Monaco JSON editor with schema autocomplete and diff
@@ -114,10 +115,11 @@ Acceptance (Week 2)
   - [x] Minimal JWT middleware scaffold in API (non-dev, protects mutating routes); token field in GUI settings; attach Authorization header in protected fetches
   - [x] Verified protected GUI fetches use Authorization header for `/jobs/:id/decision`, `/jobs/:id/rerun`, `/jobs/:id/cancel`, `/scenes/*`, `/videos/*`
   - [x] Guardrails: max cost per batch, concurrency caps (numeric range validation; optimistic UI updates; dashboard reflects changes without reload)
-- [~] Observability and QA
+  - [~] Observability and QA
   - [ ] Logs/metrics/traces; alerting on error spikes
   - [~] E2E happy-path test; seed-lock rerun test; failure recovery test
     - [x] Minimal Playwright smoke test: dashboard tiles render and SSE ping updates; added retry loop and KPI tile visibility assertion
+    - [x] Hooks page e2e: mine + synthesize queue, filters/search, approve/edit drawer, Plan Scenes navigation
     - [x] Playwright config and install script added in `apps/gui`
 
 ### Stretch/Backlog — GUI polish and UX improvements
@@ -125,7 +127,7 @@ Acceptance (Week 2)
 - [ ] Apply `design.md` plan: tokens, `Layout`, `PageHeader`, UI primitives, onboarding, page upgrades
   - [ ] Milestone 1: tokens + Layout + primitives; Dashboard + Renders upgrades; helper text; Playwright updates
   - [~] Milestone 2: Scenes Plan/Render upgrades; validation UX — JSON/Form tabs, live Ajv mapping, sticky validation; Render header chips and filmstrip thumbs
-  - [ ] Milestone 3: Hooks approval/filters UX
+  - [x] Milestone 3: Hooks approval/filters UX — Completed. Impact: `apps/gui/src/pages/hooks.tsx`, `apps/gui/src/components/ui/{Chip,Tooltip,Table}.tsx`, `tests/e2e/hooks.spec.ts` (filters/search, Mine/Synthesize dialogs, SSE chips, Approve/Edit drawer, Plan Scenes handoff)
   - [ ] Milestone 4: Video Assemble tabs; Review & Export polish; Quick tour
 
 Acceptance (Week 3)

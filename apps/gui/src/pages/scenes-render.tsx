@@ -267,14 +267,11 @@ export default function ScenesRenderPage() {
             </div>
           }
         />
-        <header className="flex items-center justify-between">
-          <h1 className="sr-only">Scenes Render</h1>
-          <nav className="flex gap-4 text-sm">
-            <Link className="text-blue-600 underline" href="/">
-              Dashboard
-            </Link>
-          </nav>
-        </header>
+        <nav className="flex gap-4 text-sm">
+          <Link className="text-blue-600 underline" href="/">
+            Dashboard
+          </Link>
+        </nav>
         <section className="rounded border bg-white p-4">
           <div className="mb-3 text-sm text-gray-700">
             Paste a valid scene spec, submit to render, and preview outputs.
