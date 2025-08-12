@@ -45,7 +45,10 @@ import {
   headObject,
   listObjects,
 } from "@gpt5video/storage";
-import { ScrapeCreatorsClient } from "@gpt5video/scrapecreators";
+import {
+  ScrapeCreatorsClient,
+  scGetTiktokProfileVideos,
+} from "@gpt5video/scrapecreators";
 import {
   ReplicateClient,
   extractSeedFromOutput,
@@ -221,14 +224,91 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
           status: "processing",
           progress: { step: "source_fetch", pct: 10 },
         });
-        const client = new ScrapeCreatorsClient({
-          apiKey: process.env.SCRAPECREATORS_API_KEY || "dev",
-          baseUrl: process.env.SCRAPECREATORS_BASE_URL,
-          userAgent: `gpt5video/api (+hooks-miner)`,
-          requestId: (req as any).id || undefined,
-        });
+        const scApiKey = process.env.SCRAPECREATORS_API_KEY || "";
         const sources = Array.isArray(body?.sources) ? body.sources : [];
-        const mined = await client.mine(sources);
+        let mined: {
+          items: any[];
+          errors: any[];
+          request_id: string;
+          latency_ms: number;
+        } = {
+          items: [],
+          errors: [],
+          request_id: String((req as any).id || "sc_dev"),
+          latency_ms: 0,
+        };
+        const t0 = Date.now();
+        if (!scApiKey) {
+          // Fall back to stub client for local dev without key
+          const client = new ScrapeCreatorsClient({
+            apiKey: "dev",
+            baseUrl: process.env.SCRAPECREATORS_BASE_URL,
+            userAgent: `gpt5video/api (+hooks-miner)`,
+            requestId: (req as any).id || undefined,
+          });
+          mined = await client.mine(sources);
+        } else {
+          // Real calls per source using v3 profile-videos
+          const all: any[] = [];
+          const errors: any[] = [];
+          for (const src of sources) {
+            try {
+              const vids = await scGetTiktokProfileVideos({
+                apiKey: scApiKey,
+                handle: src.handle,
+                user_id: undefined,
+                amount: Math.max(1, Math.min(Number(src.limit || 20), 100)),
+                trim: true,
+                baseUrl: process.env.SCRAPECREATORS_BASE_URL || undefined,
+              });
+              for (const v of vids) {
+                const shareUrl = String(
+                  v?.share_url || v?.share_info?.share_url || v?.url || "",
+                );
+                const author = String(
+                  v?.author?.unique_id ||
+                    v?.author?.nickname ||
+                    src.handle ||
+                    "",
+                );
+                const caption = String(
+                  v?.desc || v?.content_desc || v?.title || "",
+                );
+                const views = Number(v?.statistics?.play_count || 0);
+                all.push({
+                  platform: src.platform,
+                  author,
+                  url: shareUrl,
+                  caption_or_transcript: caption,
+                  detected_format: "", // can be post-processed later
+                  metrics: {
+                    views,
+                    likes: Number(v?.statistics?.digg_count || 0),
+                    comments: Number(v?.statistics?.comment_count || 0),
+                  },
+                  scraper: "scrapecreators",
+                  scrape_meta: { request_id: (req as any).id || "", page: 0 },
+                  platform_post_id: String(
+                    v?.aweme_id || v?.id || v?.id_str || "",
+                  ),
+                });
+                if (all.length >= Math.max(1, Number(src.limit || 20))) break;
+              }
+            } catch (e: any) {
+              errors.push({
+                source: src,
+                category: categorizeError(e),
+                message: String(e?.message || e),
+              });
+            }
+          }
+          mined = {
+            items: all,
+            errors,
+            request_id: (req as any).id || "",
+            latency_ms: Date.now() - t0,
+          };
+        }
         broadcastJobEvent({
           id: jobId,
           type: "hooks_mine",

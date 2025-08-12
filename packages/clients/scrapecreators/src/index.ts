@@ -235,3 +235,131 @@ function categorizeError(err: unknown) {
   if (/network|ENOTFOUND|ECONN|fetch failed/i.test(msg)) return "network";
   return "api_error";
 }
+
+// ---------- Direct TikTok endpoints (v3 profile videos, v1 transcript) ----------
+
+async function fetchJson<T>(
+  url: string,
+  init: RequestInit,
+  timeoutMs = 15000,
+): Promise<T> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: ac.signal });
+    if (!res.ok) {
+      let body: any = await res.text().catch(() => "");
+      try {
+        body = JSON.parse(body);
+      } catch {}
+      const details = typeof body === "string" ? body : JSON.stringify(body);
+      throw new Error(`HTTP ${res.status} ${res.statusText}: ${details}`);
+    }
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function buildUrl(base: string, path: string, params: Record<string, unknown>) {
+  const url = new URL(
+    path.replace(/^\//, ""),
+    base.endsWith("/") ? base : base + "/",
+  );
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === "") continue;
+    url.searchParams.set(k, String(v));
+  }
+  return url.toString();
+}
+
+export async function scGetTiktokProfileVideos(opts: {
+  apiKey: string;
+  handle?: string;
+  user_id?: string;
+  amount?: number;
+  trim?: boolean;
+  baseUrl?: string;
+}): Promise<any[]> {
+  const {
+    apiKey,
+    handle,
+    user_id,
+    amount,
+    trim,
+    baseUrl = "https://api.scrapecreators.com",
+  } = opts;
+  if (!apiKey) throw new Error("apiKey required");
+  if (!handle && !user_id) throw new Error("handle or user_id is required");
+  const url = buildUrl(baseUrl, "/v3/tiktok/profile-videos", {
+    handle,
+    user_id,
+    amount,
+    trim,
+  });
+  const data = await fetchJson<any[]>(url, {
+    method: "GET",
+    headers: { "x-api-key": apiKey, Accept: "application/json" },
+  });
+  return Array.isArray(data) ? data : [];
+}
+
+export async function scGetTiktokTranscript(opts: {
+  apiKey: string;
+  videoUrl: string;
+  language?: string;
+  baseUrl?: string;
+}): Promise<{ id: string; url: string; transcript: string }> {
+  const {
+    apiKey,
+    videoUrl,
+    language,
+    baseUrl = "https://api.scrapecreators.com",
+  } = opts;
+  if (!apiKey) throw new Error("apiKey required");
+  if (!videoUrl) throw new Error("videoUrl required");
+  const url = buildUrl(baseUrl, "/v1/tiktok/video/transcript", {
+    url: videoUrl,
+    language,
+  });
+  return fetchJson(url, {
+    method: "GET",
+    headers: { "x-api-key": apiKey, Accept: "application/json" },
+  });
+}
+
+// GET /v2/tiktok/video — full video info (optionally transcript, trim)
+export type ScTiktokVideoInfo = {
+  aweme_detail?: any;
+  transcript?: string;
+  status_code?: number;
+  status_msg?: string;
+  [k: string]: unknown;
+};
+
+export async function scGetTiktokVideo(opts: {
+  apiKey: string;
+  url: string; // TikTok video URL
+  get_transcript?: boolean;
+  trim?: boolean;
+  baseUrl?: string;
+}): Promise<ScTiktokVideoInfo> {
+  const {
+    apiKey,
+    url: videoUrl,
+    get_transcript,
+    trim,
+    baseUrl = "https://api.scrapecreators.com",
+  } = opts;
+  if (!apiKey) throw new Error("apiKey required");
+  if (!videoUrl) throw new Error("url required");
+  const url = buildUrl(baseUrl, "/v2/tiktok/video", {
+    url: videoUrl,
+    get_transcript,
+    trim,
+  });
+  return fetchJson<ScTiktokVideoInfo>(url, {
+    method: "GET",
+    headers: { "x-api-key": apiKey, Accept: "application/json" },
+  });
+}
