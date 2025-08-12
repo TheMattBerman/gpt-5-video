@@ -3,7 +3,8 @@ import PageHeader from "../components/PageHeader";
 import { useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
 import { fetchWithAuth } from "../lib/http";
-import { Button, Tooltip } from "../components/ui";
+import { Button, SegmentedControl, Tooltip } from "../components/ui";
+import QuickTour from "../components/QuickTour";
 
 export default function ReviewExportPage() {
   const apiBase = useMemo(
@@ -46,6 +47,26 @@ export default function ReviewExportPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-4xl p-6 space-y-6">
+        <QuickTour
+          steps={[
+            {
+              id: "checklist",
+              title: "Checklist",
+              description: "Confirm tone, claims, and assets are ready.",
+            },
+            {
+              id: "presets",
+              title: "Presets",
+              description: "Pick an aspect ratio and see S3 key suffix.",
+            },
+            {
+              id: "actions",
+              title: "Actions",
+              description: "Copy the S3 key or open a signed URL.",
+            },
+          ]}
+          storageKey="gpt5video_quick_tour_review"
+        />
         <PageHeader
           title="Review & Export"
           description="Run the checklist, pick an aspect preset, copy or open S3 keys, and download the CSV report."
@@ -96,29 +117,16 @@ export default function ReviewExportPage() {
 
         <section className="rounded border bg-white p-4">
           <div className="text-sm font-medium mb-2">Export presets</div>
-          <div className="grid grid-cols-3 gap-3 text-sm">
-            <Button
-              variant={preset === "9:16" ? "primary" : "secondary"}
-              onClick={() => applyPreset("9:16")}
-              aria-label="Preset 9 by 16"
-            >
-              9:16
-            </Button>
-            <Button
-              variant={preset === "1:1" ? "primary" : "secondary"}
-              onClick={() => applyPreset("1:1")}
-              aria-label="Preset 1 by 1"
-            >
-              1:1
-            </Button>
-            <Button
-              variant={preset === "16:9" ? "primary" : "secondary"}
-              onClick={() => applyPreset("16:9")}
-              aria-label="Preset 16 by 9"
-            >
-              16:9
-            </Button>
-          </div>
+          <SegmentedControl
+            ariaLabel="Export presets"
+            options={[
+              { value: "9:16", label: "9:16" },
+              { value: "1:1", label: "1:1" },
+              { value: "16:9", label: "16:9" },
+            ]}
+            value={preset || "9:16"}
+            onChange={(v) => applyPreset(v as any)}
+          />
           <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <label>
               <div className="text-gray-700">S3 key</div>

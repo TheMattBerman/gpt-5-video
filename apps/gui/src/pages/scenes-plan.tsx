@@ -15,6 +15,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  SegmentedControl,
   Tabs,
 } from "../components/ui";
 import dynamic from "next/dynamic";
@@ -518,21 +519,21 @@ export default function ScenesPlanPage() {
                               <label className="block text-sm text-gray-700 mb-1">
                                 Rendering speed
                               </label>
-                              <select
-                                id="rendering_speed"
-                                className="rounded border px-2 py-1 text-sm w-full"
+                              <SegmentedControl
+                                ariaLabel="Rendering speed"
+                                options={[
+                                  { value: "Default", label: "Default" },
+                                  { value: "Fast", label: "Fast" },
+                                  { value: "Slow", label: "Slow" },
+                                ]}
                                 value={form.rendering_speed || "Default"}
-                                onChange={(e) =>
+                                onChange={(v) =>
                                   setForm((f) => ({
                                     ...f,
-                                    rendering_speed: e.target.value as any,
+                                    rendering_speed: v as any,
                                   }))
                                 }
-                              >
-                                <option>Default</option>
-                                <option>Fast</option>
-                                <option>Slow</option>
-                              </select>
+                              />
                               <InlineError
                                 text={fieldError(
                                   ajvErrors,

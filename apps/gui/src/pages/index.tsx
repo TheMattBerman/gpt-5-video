@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PageHeader from "../components/PageHeader";
+import QuickTour from "../components/QuickTour";
 import {
   Card,
   CardContent,
@@ -165,6 +166,41 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      <QuickTour
+        steps={[
+          {
+            id: "settings",
+            title: "Settings token",
+            description:
+              "Add your API token in Settings to enable secure requests.",
+          },
+          {
+            id: "hooks",
+            title: "Hooks",
+            description: "Mine and synthesize candidate hooks.",
+          },
+          {
+            id: "scenes-plan",
+            title: "Scenes Plan",
+            description: "Compose scenes with valid JSON or a friendly form.",
+          },
+          {
+            id: "scenes-render",
+            title: "Scenes Render",
+            description: "Queue renders and watch live chips.",
+          },
+          {
+            id: "video",
+            title: "Video",
+            description: "Assemble a manifest, choose audio mode.",
+          },
+          {
+            id: "review",
+            title: "Review & Export",
+            description: "Checklist and export presets.",
+          },
+        ]}
+      />
       <PageHeader
         title="All-Replicate Content Engine"
         description="Operate Hooks → Scenes → Video with status-aware metrics and helpful defaults."

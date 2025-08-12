@@ -8,7 +8,14 @@ import { ajv } from "@gpt5video/shared";
 import { addJob, updateJob } from "../lib/jobs";
 import { fetchWithAuth } from "../lib/http";
 import { useToast } from "../components/Toast";
-import { Badge, Button, Tabs, Tooltip } from "../components/ui";
+import {
+  Badge,
+  Button,
+  SegmentedControl,
+  Tabs,
+  Tooltip,
+} from "../components/ui";
+import QuickTour from "../components/QuickTour";
 
 export default function VideoAssemblePage() {
   const apiBase = useMemo(
@@ -341,6 +348,27 @@ export default function VideoAssemblePage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
+        <QuickTour
+          steps={[
+            {
+              id: "order",
+              title: "Order scenes",
+              description: "Reorder by drag and set transitions + motion.",
+            },
+            {
+              id: "audio",
+              title: "Audio modes",
+              description:
+                "Choose none, voiceover, or dialogue (guardrails enforced).",
+            },
+            {
+              id: "assemble",
+              title: "Assemble",
+              description: "Submit and preview with a lightweight filmstrip.",
+            },
+          ]}
+          storageKey="gpt5video_quick_tour_video"
+        />
         <PageHeader
           title="Video Assemble"
           description="Build a manifest via form or JSON. Audio modes: none, voiceover, dialogue."
@@ -445,17 +473,18 @@ export default function VideoAssemblePage() {
                           <div className="grid grid-cols-2 gap-3">
                             <label className="text-sm">
                               <div className="text-gray-700">Mode</div>
-                              <select
-                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                                value={audioMode}
-                                onChange={(e) =>
-                                  setAudioMode(e.target.value as any)
-                                }
-                              >
-                                <option value="none">none</option>
-                                <option value="voiceover">voiceover</option>
-                                <option value="dialogue">dialogue</option>
-                              </select>
+                              <div className="mt-1">
+                                <SegmentedControl
+                                  ariaLabel="Audio mode"
+                                  options={[
+                                    { value: "none", label: "none" },
+                                    { value: "voiceover", label: "voiceover" },
+                                    { value: "dialogue", label: "dialogue" },
+                                  ]}
+                                  value={audioMode}
+                                  onChange={(v) => setAudioMode(v as any)}
+                                />
+                              </div>
                             </label>
                             <label className="text-sm">
                               <div className="text-gray-700">Voice style</div>

@@ -20,6 +20,7 @@ import {
   TRow,
   Tooltip,
 } from "../components/ui";
+import QuickTour from "../components/QuickTour";
 
 type HookCorpusRow = {
   id: number;
@@ -337,6 +338,26 @@ export default function HooksPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
+        <QuickTour
+          steps={[
+            {
+              id: "sources",
+              title: "Add sources",
+              description: "Enter platform handles or URLs to mine.",
+            },
+            {
+              id: "mine",
+              title: "Mine",
+              description: "Start mining and watch status chips.",
+            },
+            {
+              id: "synth",
+              title: "Synthesize",
+              description: "Generate hooks by ICP and angle, then approve.",
+            },
+          ]}
+          storageKey="gpt5video_quick_tour_hooks"
+        />
         <PageHeader
           title="Hooks"
           description="Set up sources, mine and synthesize hooks. Approve or edit before planning scenes."

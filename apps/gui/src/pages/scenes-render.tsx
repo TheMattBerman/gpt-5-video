@@ -2,6 +2,7 @@ import Link from "next/link";
 import PageHeader from "../components/PageHeader";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Tooltip } from "../components/ui";
+import QuickTour from "../components/QuickTour";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import sceneSpecsLineSchema from "../../../../packages/schemas/schemas/scene_specs_line.schema.json";
@@ -229,6 +230,26 @@ export default function ScenesRenderPage() {
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
+        <QuickTour
+          steps={[
+            {
+              id: "paste",
+              title: "Paste JSON",
+              description: "Provide a valid scene spec (schema-checked).",
+            },
+            {
+              id: "render",
+              title: "Render",
+              description: "Queue a render and watch live chips update.",
+            },
+            {
+              id: "outputs",
+              title: "Outputs",
+              description: "Preview frames and a lightweight filmstrip.",
+            },
+          ]}
+          storageKey="gpt5video_quick_tour_render"
+        />
         <PageHeader
           title="Scenes Render"
           description="Paste a valid scene spec and queue renders. Watch live status and preview outputs."

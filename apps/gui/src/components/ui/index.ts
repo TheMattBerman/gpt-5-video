@@ -10,4 +10,5 @@ export { THead, TRow, TH, TD } from "./Table";
 export { default as EmptyState } from "./EmptyState";
 export { default as Chip } from "./Chip";
 export { default as Tooltip } from "./Tooltip";
+export { default as SegmentedControl } from "./SegmentedControl";
 // duplicate export removed
