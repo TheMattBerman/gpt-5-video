@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import PageHeader from "../components/PageHeader";
 import { useEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -18,6 +19,7 @@ import {
 import QuickTour from "../components/QuickTour";
 
 export default function VideoAssemblePage() {
+  const router = useRouter();
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
     [],
@@ -60,6 +62,9 @@ export default function VideoAssemblePage() {
   const [dialogueTiming, setDialogueTiming] = useState<
     Array<{ scene_id: string; t: number; character: string; line: string }>
   >([]);
+  const [refs, setRefs] = useState<
+    Array<{ scene_id: string; image_url: string }>
+  >([]);
   // filmstrip capture control
   const filmstripTaskIdRef = useRef<number>(0);
   const filmstripTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,6 +92,21 @@ export default function VideoAssemblePage() {
         setDialogueTiming(a.dialogue_timing);
     } catch {}
   }
+
+  // Initialize from Renders picker (order=scene1,scene2)
+  useEffect(() => {
+    try {
+      const q = router.query?.order as string | undefined;
+      if (q && typeof q === "string") {
+        const ord = q
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (ord.length) setOrder(ord.join(", "));
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.query?.order]);
 
   function debouncedValidateAndMaybeSync(t: string) {
     if (validateTimerRef.current) clearTimeout(validateTimerRef.current);
@@ -142,6 +162,13 @@ export default function VideoAssemblePage() {
       transitions,
       motion,
       audio,
+      refs: refs.reduce(
+        (acc, r) => {
+          if (r.scene_id && r.image_url) acc[r.scene_id] = r.image_url;
+          return acc;
+        },
+        {} as Record<string, string>,
+      ),
     };
     const ok = validate(candidate);
     if (!ok) {
@@ -644,6 +671,66 @@ export default function VideoAssemblePage() {
                               </div>
                             </div>
                           )}
+                        </div>
+                      </div>
+                      <div className="col-span-3">
+                        <div className="mt-4 rounded border p-3">
+                          <div className="text-sm font-medium mb-2">
+                            Per‑scene reference images
+                          </div>
+                          <div className="space-y-2">
+                            {refs.map((r, i) => (
+                              <div
+                                key={i}
+                                className="grid grid-cols-3 gap-2 items-center"
+                              >
+                                <input
+                                  className="rounded border px-2 py-1 text-sm"
+                                  placeholder="scene_id"
+                                  value={r.scene_id}
+                                  onChange={(e) =>
+                                    setRefs((prev) =>
+                                      prev.map((v, idx) =>
+                                        idx === i
+                                          ? { ...v, scene_id: e.target.value }
+                                          : v,
+                                      ),
+                                    )
+                                  }
+                                />
+                                <input
+                                  className="rounded border px-2 py-1 text-sm col-span-2"
+                                  placeholder="reference image url"
+                                  value={r.image_url}
+                                  onChange={(e) =>
+                                    setRefs((prev) =>
+                                      prev.map((v, idx) =>
+                                        idx === i
+                                          ? { ...v, image_url: e.target.value }
+                                          : v,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </div>
+                            ))}
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() =>
+                                setRefs((prev) => [
+                                  ...prev,
+                                  { scene_id: "", image_url: "" },
+                                ])
+                              }
+                            >
+                              Add reference
+                            </Button>
+                            <div className="mt-1 text-xs text-gray-600">
+                              Use the winning scene image (or a character
+                              headshot) to stabilize identity per scene.
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <div className="col-span-3">

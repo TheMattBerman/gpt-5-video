@@ -2355,10 +2355,11 @@ function computeActualVideoCost(finalPred: any): number | undefined {
 }
 
 function buildVideoPrompt(manifest: any): string {
-  const scenes = (manifest.order || []).join(", ");
+  const scenes: string[] = Array.isArray(manifest.order) ? manifest.order : [];
   const motion = manifest.motion;
   const transitions = manifest.transitions;
   const audio = manifest.audio;
+  const refs: Record<string, string> = manifest.refs || {};
   let audioText = "";
   if (audio && audio.mode && audio.mode !== "none") {
     if (audio.mode === "voiceover") {
@@ -2367,5 +2368,10 @@ function buildVideoPrompt(manifest: any): string {
       audioText = ` Dialogue is enabled with provided timings.`;
     }
   }
-  return `Create a short dynamic video with ${motion}. Transitions: ${transitions}. Scenes: ${scenes}.${audioText}`;
+  // Build per-scene lines that mention a reference when provided
+  const lines = scenes.map((id, idx) => {
+    const ref = refs[id] ? ` Start with reference image: ${refs[id]}.` : "";
+    return `${idx + 1}. Scene ${id}.${ref}`;
+  });
+  return `Create a short dynamic video with ${motion}. Transitions: ${transitions}. Scenes in order:\n${lines.join("\n")}\n${audioText}`;
 }

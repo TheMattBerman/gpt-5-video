@@ -49,6 +49,11 @@
         }
       },
       "required": ["mode"]
+    },
+    "refs": {
+      "type": "object",
+      "description": "Optional per-scene reference images for identity consistency.",
+      "additionalProperties": { "type": "string" }
     }
   },
   "required": ["order", "transitions", "motion"],

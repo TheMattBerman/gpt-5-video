@@ -83,7 +83,8 @@ Acceptance (Week 1)
   - [x] Audio panel per scene (dialogue or VO fields present)
 - [x] Renders workflow
 - [~] Scene image generation queue; grid view with compare (DB-backed queue + in-process worker added; SSE reflects status); cancel for queued jobs; batch queue action to queue 15 renders
-- [x] Approve/reject, re-run with same/new seed
+  - [x] Approve/reject, re-run with same/new seed
+  - [x] Renders UX pass: switched to shared `Button`/`Badge`/`Tooltip`, added `QuickTour` (first-run guidance), clarified status/cost badges, improved action layout and accessibility labels
 - [x] Cost meter (estimate + actual) for images
 - [~] Telemetry & reliability
   - [x] Cost ledger for GPT + Replicate per asset (GPT placeholder added for synth; provider splits and run meta captured)

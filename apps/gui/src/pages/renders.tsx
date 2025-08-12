@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import PageHeader from "../components/PageHeader";
 import { Card } from "../components/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../components/Toast";
 import { fetchWithAuth } from "../lib/http";
+import { Badge, Button, Tooltip } from "../components/ui";
+import QuickTour from "../components/QuickTour";
 
 type Job = {
   id: string;
@@ -18,9 +21,11 @@ type Job = {
   cost_actual_usd?: number | null;
   created_at?: string;
   artifacts?: Array<{ id: number; type?: string; url?: string; key?: string }>;
+  job_meta?: any;
 };
 
 export default function RendersPage() {
+  const router = useRouter();
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
     [],
@@ -42,6 +47,55 @@ export default function RendersPage() {
   const [lastEventByJob, setLastEventByJob] = useState<
     Record<string, { step?: string; attempt_count?: number; status?: string }>
   >({});
+  // Build-a-video picker state
+  const [pickerOpen, setPickerOpen] = useState<boolean>(false);
+  const [pickerBusy, setPickerBusy] = useState<boolean>(false);
+  const [pickerScenes, setPickerScenes] = useState<
+    Array<{ sceneId: string; thumbUrl: string; jobId: string }>
+  >([]);
+  const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  async function loadPickerScenes() {
+    try {
+      setPickerBusy(true);
+      const res = await fetch(`${apiBase}/jobs/recent?limit=100`);
+      const data = await res.json();
+      const items: any[] = Array.isArray(data.items) ? data.items : [];
+      const scenes: Array<{
+        sceneId: string;
+        thumbUrl: string;
+        jobId: string;
+      }> = [];
+      for (const j of items) {
+        if (j?.type !== "scene_render" || j?.status !== "succeeded") continue;
+        let sceneId: string | null = null;
+        try {
+          if (j?.job_meta?.request?.scene_id)
+            sceneId = String(j.job_meta.request.scene_id);
+        } catch {}
+        const a = Array.isArray(j?.artifacts) ? j.artifacts : [];
+        const img = a.find(
+          (x: any) =>
+            typeof x?.url === "string" && /\.(png|jpg|jpeg|gif)$/i.test(x.url),
+        );
+        if (!sceneId) {
+          const m = String(img?.url || "").match(
+            /([a-z0-9_\-]{3,})\.(png|jpg|jpeg|gif)/i,
+          );
+          if (m) sceneId = m[1];
+        }
+        if (!sceneId) continue;
+        scenes.push({ sceneId, thumbUrl: img?.url || "", jobId: j.id });
+      }
+      setPickerScenes(scenes);
+    } catch {
+      setPickerScenes([]);
+    } finally {
+      setPickerBusy(false);
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -157,6 +211,35 @@ export default function RendersPage() {
           title="Renders"
           description="Preview outputs, compare, approve or re-run. Status and costs shown per job."
         />
+        <QuickTour
+          storageKey="gpt5video_quick_tour_renders"
+          steps={[
+            {
+              id: "compare",
+              title: "Compare two outputs",
+              description:
+                "Click ‘Select for compare’ on two images or videos to view them side-by-side with thumbnails.",
+            },
+            {
+              id: "approve",
+              title: "Approve or reject",
+              description:
+                "Use Approve to mark a keeper or Reject to leave a note on why it’s not usable.",
+            },
+            {
+              id: "rerun",
+              title: "Re-run options",
+              description:
+                "Re-run queues a new job. Use ‘same seed’ for consistency or ‘duplicate (new seed)’ to explore variants.",
+            },
+            {
+              id: "drawer",
+              title: "Open job drawer",
+              description:
+                "See raw request/response, costs, model version and seed for auditability.",
+            },
+          ]}
+        />
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Renders</h1>
           <nav className="flex gap-4 text-sm">
@@ -166,7 +249,20 @@ export default function RendersPage() {
           </nav>
         </header>
         <Card>
-          <div className="text-sm font-medium mb-2">Recent renders</div>
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-sm font-medium">Recent renders</div>
+            <Button
+              size="sm"
+              variant="primary"
+              aria-label="Build a video"
+              onClick={async () => {
+                setPickerOpen(true);
+                await loadPickerScenes();
+              }}
+            >
+              Build a video
+            </Button>
+          </div>
           {compareAUrl && compareBUrl && (
             <div className="mb-3 rounded border p-2">
               <div className="flex items-center justify-between mb-2">
@@ -248,42 +344,50 @@ export default function RendersPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {items.map((j) => (
-                <div key={j.id} className="rounded border p-3 space-y-2">
+                <div
+                  key={j.id}
+                  className="rounded border p-3 space-y-2 bg-white/95"
+                >
                   <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="px-1.5 py-0.5 rounded bg-gray-100">
-                        {j.type}
-                      </span>
-                      <span className="px-1.5 py-0.5 rounded bg-gray-100">
-                        {j.status === "queued"
-                          ? "queued"
-                          : j.status === "processing"
-                            ? "processing"
-                            : j.status}
-                      </span>
+                    <div className="flex items-center gap-1.5">
+                      <Badge className="capitalize">{j.type}</Badge>
+                      <Badge
+                        variant={
+                          j.status === "succeeded"
+                            ? "success"
+                            : j.status === "failed"
+                              ? "error"
+                              : j.status === "processing"
+                                ? "info"
+                                : "warning"
+                        }
+                        className="capitalize"
+                      >
+                        {j.status}
+                      </Badge>
                       {lastEventByJob[j.id]?.step && (
-                        <span className="px-1.5 py-0.5 rounded bg-gray-50 text-gray-800">
+                        <Badge variant="default">
                           {lastEventByJob[j.id].step}
-                        </span>
+                        </Badge>
                       )}
                       {typeof lastEventByJob[j.id]?.attempt_count ===
                         "number" && (
-                        <span className="px-1 py-0.5 rounded bg-gray-100">
+                        <Badge variant="default">
                           #{lastEventByJob[j.id]!.attempt_count}
-                        </span>
+                        </Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
                       {typeof (j as any).cost_estimate_usd === "number" && (
-                        <span className="rounded bg-yellow-50 px-1.5 py-0.5 text-yellow-800">
+                        <Badge variant="warning">
                           est ${Number((j as any).cost_estimate_usd).toFixed(2)}
-                        </span>
+                        </Badge>
                       )}
                       {typeof (j as any).cost_actual_usd === "number" &&
                         Number((j as any).cost_actual_usd) > 0 && (
-                          <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
+                          <Badge variant="info">
                             ${Number((j as any).cost_actual_usd).toFixed(2)}
-                          </span>
+                          </Badge>
                         )}
                     </div>
                   </div>
@@ -320,16 +424,16 @@ export default function RendersPage() {
                   )}
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     {typeof (j as any).cost_estimate_usd === "number" && (
-                      <span className="rounded bg-yellow-50 px-1.5 py-0.5 text-yellow-800">
+                      <Badge variant="warning">
                         Est ${Number((j as any).cost_estimate_usd).toFixed(2)}
-                      </span>
+                      </Badge>
                     )}
                     {typeof (j as any).cost_actual_usd === "number" &&
                       Number((j as any).cost_actual_usd) > 0 && (
-                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800">
+                        <Badge variant="info">
                           Actual $
                           {Number((j as any).cost_actual_usd).toFixed(2)}
-                        </span>
+                        </Badge>
                       )}
                   </div>
                   {!!j.artifacts?.length && (
@@ -367,8 +471,10 @@ export default function RendersPage() {
                               )}
                             {a.url && (
                               <div className="mt-1">
-                                <button
-                                  className="rounded border px-2 py-0.5 text-[10px]"
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  aria-label="Select for compare"
                                   onClick={() => {
                                     if (!compareAUrl) setCompareAUrl(a.url!);
                                     else if (!compareBUrl)
@@ -380,7 +486,7 @@ export default function RendersPage() {
                                   }}
                                 >
                                   Select for compare
-                                </button>
+                                </Button>
                               </div>
                             )}
                           </div>
@@ -388,43 +494,52 @@ export default function RendersPage() {
                       </div>
                     </div>
                   )}
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     {j.status === "queued" && (
-                      <button
-                        className="rounded border px-2 py-1 text-xs"
-                        onClick={async () => {
-                          try {
-                            const res = await fetchWithAuth(
-                              `${apiBase}/jobs/${j.id}/cancel`,
-                              { method: "POST" },
-                            );
-                            if (res.ok)
-                              show({ title: "Cancelled", variant: "success" });
-                            else if (res.status === 409)
-                              show({
-                                title: "Not cancellable",
-                                description: "Job already processing",
-                                variant: "error",
-                              });
-                            else
+                      <Tooltip label="Cancel a queued job">
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          aria-label="Cancel job"
+                          onClick={async () => {
+                            try {
+                              const res = await fetchWithAuth(
+                                `${apiBase}/jobs/${j.id}/cancel`,
+                                { method: "POST" },
+                              );
+                              if (res.ok)
+                                show({
+                                  title: "Cancelled",
+                                  variant: "success",
+                                });
+                              else if (res.status === 409)
+                                show({
+                                  title: "Not cancellable",
+                                  description: "Job already processing",
+                                  variant: "error",
+                                });
+                              else
+                                show({
+                                  title: "Cancel failed",
+                                  variant: "error",
+                                });
+                            } catch (e: any) {
                               show({
                                 title: "Cancel failed",
+                                description: String(e?.message || e),
                                 variant: "error",
                               });
-                          } catch (e: any) {
-                            show({
-                              title: "Cancel failed",
-                              description: String(e?.message || e),
-                              variant: "error",
-                            });
-                          }
-                        }}
-                      >
-                        Cancel
-                      </button>
+                            }
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </Tooltip>
                     )}
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      aria-label="Approve job"
                       onClick={async () => {
                         try {
                           await fetchWithAuth(
@@ -442,9 +557,11 @@ export default function RendersPage() {
                       }}
                     >
                       Approve
-                    </button>
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      aria-label="Reject job"
                       onClick={async () => {
                         const note = prompt("Reason?") || "";
                         try {
@@ -466,134 +583,150 @@ export default function RendersPage() {
                       }}
                     >
                       Reject
-                    </button>
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
-                      onClick={async () => {
-                        try {
-                          const payload = await promptRerunPayload(j);
-                          if (!payload) return;
-                          const res = await fetchWithAuth(
-                            `${apiBase}/jobs/${j.id}/rerun`,
-                            {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ payload }),
-                            },
-                          );
-                          const data = await res.json();
-                          if (res.ok)
-                            show({ title: "Rerun queued", variant: "success" });
-                          else
+                    </Button>
+                    <Tooltip label="Queue a new job with edited JSON">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        aria-label="Re-run job"
+                        onClick={async () => {
+                          try {
+                            const payload = await promptRerunPayload(j);
+                            if (!payload) return;
+                            const res = await fetchWithAuth(
+                              `${apiBase}/jobs/${j.id}/rerun`,
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ payload }),
+                              },
+                            );
+                            const data = await res.json();
+                            if (res.ok)
+                              show({
+                                title: "Rerun queued",
+                                variant: "success",
+                              });
+                            else
+                              show({
+                                title: "Rerun failed",
+                                description: String(
+                                  data?.error || res.statusText,
+                                ),
+                                variant: "error",
+                              });
+                          } catch (e: any) {
                             show({
                               title: "Rerun failed",
-                              description: String(
-                                data?.error || res.statusText,
-                              ),
+                              description: String(e?.message || e),
                               variant: "error",
                             });
-                        } catch (e: any) {
-                          show({
-                            title: "Rerun failed",
-                            description: String(e?.message || e),
-                            variant: "error",
-                          });
-                        }
-                      }}
-                    >
-                      Re-run
-                    </button>
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
-                      onClick={async () => {
-                        try {
-                          // For same-seed rerun, prompt for the last scene/manifest and inject seed
-                          const payload = await promptRerunPayload(j);
-                          if (!payload) return;
-                          if (j.seed && payload?.model_inputs)
-                            payload.model_inputs.seed = j.seed;
-                          const res = await fetchWithAuth(
-                            `${apiBase}/jobs/${j.id}/rerun`,
-                            {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ payload }),
-                            },
-                          );
-                          const data = await res.json();
-                          if (res.ok)
-                            show({
-                              title: "Re-run with seed queued",
-                              variant: "success",
-                            });
-                          else
+                          }
+                        }}
+                      >
+                        Re-run
+                      </Button>
+                    </Tooltip>
+                    <Tooltip label="Re-run using the same seed for consistency">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        aria-label="Re-run with same seed"
+                        onClick={async () => {
+                          try {
+                            const payload = await promptRerunPayload(j);
+                            if (!payload) return;
+                            if (j.seed && payload?.model_inputs)
+                              payload.model_inputs.seed = j.seed;
+                            const res = await fetchWithAuth(
+                              `${apiBase}/jobs/${j.id}/rerun`,
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ payload }),
+                              },
+                            );
+                            const data = await res.json();
+                            if (res.ok)
+                              show({
+                                title: "Re-run with seed queued",
+                                variant: "success",
+                              });
+                            else
+                              show({
+                                title: "Re-run failed",
+                                description: String(
+                                  data?.error || res.statusText,
+                                ),
+                                variant: "error",
+                              });
+                          } catch (e: any) {
                             show({
                               title: "Re-run failed",
-                              description: String(
-                                data?.error || res.statusText,
-                              ),
+                              description: String(e?.message || e),
                               variant: "error",
                             });
-                        } catch (e: any) {
-                          show({
-                            title: "Re-run failed",
-                            description: String(e?.message || e),
-                            variant: "error",
-                          });
-                        }
-                      }}
-                    >
-                      Re-run (same seed)
-                    </button>
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
-                      onClick={async () => {
-                        try {
-                          const payload = await promptRerunPayload(j);
-                          if (!payload) return;
-                          if (payload?.model_inputs)
-                            payload.model_inputs.seed = Math.floor(
-                              Math.random() * 1_000_000_000,
+                          }
+                        }}
+                      >
+                        Re-run (same seed)
+                      </Button>
+                    </Tooltip>
+                    <Tooltip label="Duplicate with a new random seed to explore variants">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Duplicate with new seed"
+                        onClick={async () => {
+                          try {
+                            const payload = await promptRerunPayload(j);
+                            if (!payload) return;
+                            if (payload?.model_inputs)
+                              payload.model_inputs.seed = Math.floor(
+                                Math.random() * 1_000_000_000,
+                              );
+                            const res = await fetchWithAuth(
+                              `${apiBase}/jobs/${j.id}/rerun`,
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ payload }),
+                              },
                             );
-                          const res = await fetchWithAuth(
-                            `${apiBase}/jobs/${j.id}/rerun`,
-                            {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ payload }),
-                            },
-                          );
-                          const data = await res.json();
-                          if (res.ok)
-                            show({
-                              title: "Duplicate with new seed queued",
-                              variant: "success",
-                            });
-                          else
+                            const data = await res.json();
+                            if (res.ok)
+                              show({
+                                title: "Duplicate with new seed queued",
+                                variant: "success",
+                              });
+                            else
+                              show({
+                                title: "Duplicate failed",
+                                description: String(
+                                  data?.error || res.statusText,
+                                ),
+                                variant: "error",
+                              });
+                          } catch (e: any) {
                             show({
                               title: "Duplicate failed",
-                              description: String(
-                                data?.error || res.statusText,
-                              ),
+                              description: String(e?.message || e),
                               variant: "error",
                             });
-                        } catch (e: any) {
-                          show({
-                            title: "Duplicate failed",
-                            description: String(e?.message || e),
-                            variant: "error",
-                          });
-                        }
-                      }}
-                    >
-                      Duplicate (new seed)
-                    </button>
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
+                          }
+                        }}
+                      >
+                        Duplicate (new seed)
+                      </Button>
+                    </Tooltip>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label="Open job drawer"
                       onClick={() => setDrawerJobId(j.id)}
                     >
                       Open job drawer
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -603,6 +736,112 @@ export default function RendersPage() {
             </div>
           )}
         </Card>
+        {pickerOpen && (
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/30"
+              onClick={() => setPickerOpen(false)}
+            />
+            <div className="relative m-4 w-full max-w-3xl rounded-md border bg-white p-4 shadow-elevated">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">
+                  Select scenes to assemble
+                </div>
+                <button
+                  className="text-xs underline"
+                  onClick={() => setPickerOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <div className="mt-3 text-xs text-gray-600">
+                Pick the scene_ids you want in your video. These come from your
+                succeeded image renders.
+              </div>
+              <div className="mt-3">
+                {pickerBusy ? (
+                  <div className="text-sm text-gray-600">Loading…</div>
+                ) : pickerScenes.length === 0 ? (
+                  <div className="text-sm text-gray-600">
+                    No recent scenes found.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {pickerScenes.map((sc) => {
+                      const checked = selectedSceneIds.has(sc.sceneId);
+                      return (
+                        <label
+                          key={`${sc.jobId}-${sc.sceneId}`}
+                          className="rounded border p-2 flex gap-2 items-center cursor-pointer select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={checked}
+                            onChange={(e) => {
+                              setSelectedSceneIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(sc.sceneId);
+                                else next.delete(sc.sceneId);
+                                return next;
+                              });
+                            }}
+                          />
+                          {sc.thumbUrl ? (
+                            <img
+                              src={sc.thumbUrl}
+                              alt="thumb"
+                              className="h-16 w-12 object-cover rounded border"
+                            />
+                          ) : (
+                            <div className="h-16 w-12 rounded border bg-gray-50" />
+                          )}
+                          <span className="font-mono text-xs">
+                            {sc.sceneId}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setSelectedSceneIds(
+                        new Set(pickerScenes.map((p) => p.sceneId)),
+                      );
+                    }}
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedSceneIds(new Set())}
+                  >
+                    Clear
+                  </Button>
+                </div>
+                <Button
+                  onClick={() => {
+                    const order = Array.from(selectedSceneIds);
+                    if (order.length === 0) return;
+                    const params = new URLSearchParams();
+                    params.set("order", order.join(","));
+                    router.push(`/video-assemble?${params.toString()}`);
+                  }}
+                  disabled={selectedSceneIds.size === 0}
+                >
+                  Continue to Video
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
         {drawerJobId && (
           <div className="fixed inset-0 z-50 flex justify-end">
             <div
@@ -772,3 +1011,40 @@ async function generateThumbs(url: string, count = 5): Promise<string[]> {
 }
 
 // scheduleThumbs is defined inside the component to access state/refs
+
+// Load recent scene_render jobs and derive scene_id with a representative image
+async function loadPickerScenes(this: void) {
+  try {
+    const base = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
+    const res = await fetch(`${base}/jobs/recent?limit=100`);
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    const scenes: Array<{ sceneId: string; thumbUrl: string; jobId: string }> =
+      [];
+    for (const j of items) {
+      if (j?.type !== "scene_render" || j?.status !== "succeeded") continue;
+      // Derive scene_id from persisted job_meta.request.scene_id if present
+      let sceneId: string | null = null;
+      try {
+        if (j?.job_meta?.request?.scene_id)
+          sceneId = String(j.job_meta.request.scene_id);
+      } catch {}
+      // Fallback: try first artifact image filename pattern containing a scene id-like token
+      const a = Array.isArray(j?.artifacts) ? j.artifacts : [];
+      const img = a.find(
+        (x: any) =>
+          typeof x?.url === "string" && /\.(png|jpg|jpeg|gif)$/i.test(x.url),
+      );
+      if (!sceneId) {
+        const m = String(img?.url || "").match(
+          /([a-z0-9_\-]{3,})\.(png|jpg|jpeg|gif)/i,
+        );
+        if (m) sceneId = m[1];
+      }
+      if (!sceneId) continue;
+      scenes.push({ sceneId, thumbUrl: img?.url || "", jobId: j.id });
+    }
+    // @ts-ignore - access component state via window event
+    (window as any).setBuildVideoPicker?.(scenes);
+  } catch {}
+}
