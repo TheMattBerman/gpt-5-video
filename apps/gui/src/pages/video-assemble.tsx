@@ -15,6 +15,7 @@ import {
   SegmentedControl,
   Tabs,
   Tooltip,
+  Select,
 } from "../components/ui";
 import QuickTour from "../components/QuickTour";
 
@@ -45,6 +46,7 @@ export default function VideoAssemblePage() {
   const [order, setOrder] = useState<string>("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [filmstripUrls, setFilmstripUrls] = useState<string[]>([]);
+  const [making, setMaking] = useState<boolean>(false);
   const [transitions, setTransitions] = useState<string>("hard_cuts");
   const [motion, setMotion] = useState<string>("subtle parallax");
   const [model, setModel] = useState<"veo-3" | "veo-3-fast">("veo-3-fast");
@@ -67,6 +69,18 @@ export default function VideoAssemblePage() {
   const [refs, setRefs] = useState<
     Array<{ scene_id: string; image_url: string }>
   >([]);
+  const [characterName, setCharacterName] = useState<string>("");
+  const [overlayEnabled, setOverlayEnabled] = useState<boolean>(true);
+  const [ctaText, setCtaText] = useState<string>("Get the playbook");
+  const [ctaTime, setCtaTime] = useState<number>(0.2);
+  const [brand, setBrand] = useState<any | null>(null);
+  const [hooks, setHooks] = useState<Array<{ id: string; hook_text: string }>>(
+    [],
+  );
+  const [selectedHookId, setSelectedHookId] = useState<string>("");
+  const [templateId, setTemplateId] = useState<
+    "ugc_front" | "ugc_broll" | "explainer"
+  >("ugc_front");
   // filmstrip capture control
   const filmstripTaskIdRef = useRef<number>(0);
   const filmstripTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,6 +129,80 @@ export default function VideoAssemblePage() {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query?.order]);
+
+  // Auto-carry character winner image as reference when no ref passed
+  useEffect(() => {
+    try {
+      if (refs.length > 0) return;
+      const firstScene = order
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)[0];
+      if (!firstScene) return;
+      const raw =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("gpt5video_character_winner")
+          : null;
+      if (!raw) return;
+      const parsed = JSON.parse(raw || "null");
+      const url = parsed?.url;
+      if (typeof url === "string" && url) {
+        setRefs([{ scene_id: firstScene, image_url: url }]);
+      }
+    } catch {}
+  }, [order, refs.length]);
+
+  // Load character name for dialogue defaults
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/character`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const first = items[0]?.data;
+        const name =
+          (first && typeof first.name === "string" && first.name) ||
+          "Character";
+        if (!cancelled) setCharacterName(name);
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+
+  // Load latest brand + approved hooks for presets
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [bRes, hRes] = await Promise.all([
+          fetch(`${apiBase}/ingest/brand/latest`),
+          fetch(`${apiBase}/hooks/synth?approved=true&limit=50`),
+        ]);
+        if (bRes.ok) {
+          const b = await bRes.json();
+          if (!cancelled) setBrand(b?.data || b);
+        }
+        if (hRes.ok) {
+          const h = await hRes.json();
+          const items = Array.isArray(h?.items) ? h.items : [];
+          if (!cancelled)
+            setHooks(
+              items.map((it: any) => ({
+                id: String(it.id ?? it.hook_text),
+                hook_text: String(it.hook_text || ""),
+              })),
+            );
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
 
   function debouncedValidateAndMaybeSync(t: string) {
     if (validateTimerRef.current) clearTimeout(validateTimerRef.current);
@@ -170,6 +258,15 @@ export default function VideoAssemblePage() {
       transitions,
       motion,
       audio,
+      overlays: overlayEnabled
+        ? [
+            {
+              time: Number.isFinite(ctaTime) ? ctaTime : 0.2,
+              type: "cta",
+              text: ctaText,
+            },
+          ]
+        : [],
       refs: refs.reduce(
         (acc, r) => {
           if (r.scene_id && r.image_url) acc[r.scene_id] = r.image_url;
@@ -210,12 +307,14 @@ export default function VideoAssemblePage() {
   }
 
   async function submit() {
+    setMaking(true);
     let manifest: any = null;
     try {
       manifest = JSON.parse(text);
     } catch {}
     if (!manifest) {
       show({ title: "Invalid manifest", variant: "error" });
+      setMaking(false);
       return;
     }
     const ok = validate(manifest);
@@ -226,6 +325,7 @@ export default function VideoAssemblePage() {
         ),
       );
       show({ title: "Invalid manifest", variant: "error" });
+      setMaking(false);
       return;
     }
     if (!manifest) return;
@@ -267,6 +367,7 @@ export default function VideoAssemblePage() {
         variant: "error",
       });
     }
+    setMaking(false);
   }
 
   // Subscribe to SSE to refresh job detail when events occur
@@ -500,6 +601,131 @@ export default function VideoAssemblePage() {
                           </div>
                         )}
                       </label>
+                      {/* Presets: style, brand voice, and hook selection */}
+                      <div className="col-span-3">
+                        <div className="mt-4 rounded border p-3 bg-white">
+                          <div className="text-sm font-medium mb-2">
+                            Presets
+                          </div>
+                          <div className="grid grid-cols-3 gap-3">
+                            <label className="text-sm">
+                              <div className="text-gray-700">Style preset</div>
+                              <select
+                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                value={templateId}
+                                onChange={(e) =>
+                                  setTemplateId(e.target.value as any)
+                                }
+                              >
+                                <option value="ugc_front">
+                                  UGC – front camera
+                                </option>
+                                <option value="ugc_broll">
+                                  UGC – b‑roll point-and-show
+                                </option>
+                                <option value="explainer">Explainer</option>
+                              </select>
+                              <div className="mt-1">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    if (templateId === "ugc_front") {
+                                      setTransitions("hard_cuts");
+                                      setMotion("subtle parallax, 110% push");
+                                    } else if (templateId === "ugc_broll") {
+                                      setTransitions("hard_cuts");
+                                      setMotion("quick cuts, light zooms");
+                                    } else {
+                                      setTransitions("hard_cuts");
+                                      setMotion(
+                                        "gentle pans with text callouts",
+                                      );
+                                    }
+                                    show({
+                                      title: "Preset applied",
+                                      variant: "success",
+                                    });
+                                  }}
+                                >
+                                  Apply preset
+                                </Button>
+                              </div>
+                            </label>
+                            <label className="text-sm">
+                              <div className="text-gray-700">Brand voice</div>
+                              <div className="mt-1 text-xs text-gray-600 h-[30px] overflow-hidden">
+                                {brand?.voice?.principles?.join?.(", ") ||
+                                  "No brand loaded"}
+                              </div>
+                              <div className="mt-1">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    const principles = (
+                                      brand?.voice?.principles || []
+                                    )
+                                      .join(" ")
+                                      .toLowerCase();
+                                    if (/authoritative/.test(principles))
+                                      setVoiceStyle("authoritative");
+                                    else if (/confident/.test(principles))
+                                      setVoiceStyle("confident_casual");
+                                    else setVoiceStyle("conversational_ugcs");
+                                    show({
+                                      title: "Brand voice applied",
+                                      variant: "success",
+                                    });
+                                  }}
+                                >
+                                  Use brand voice
+                                </Button>
+                              </div>
+                            </label>
+                            <label className="text-sm">
+                              <div className="text-gray-700">
+                                Hook (approved)
+                              </div>
+                              <select
+                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                value={selectedHookId}
+                                onChange={(e) =>
+                                  setSelectedHookId(e.target.value)
+                                }
+                              >
+                                <option value="">— Choose a hook —</option>
+                                {hooks.map((h) => (
+                                  <option key={h.id} value={h.id}>
+                                    {h.hook_text.slice(0, 80)}
+                                  </option>
+                                ))}
+                              </select>
+                              <div className="mt-1">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    const found = hooks.find(
+                                      (h) => h.id === selectedHookId,
+                                    );
+                                    if (found) {
+                                      setVoPrompt(found.hook_text);
+                                      show({
+                                        title: "Hook applied to VO",
+                                        variant: "success",
+                                      });
+                                    }
+                                  }}
+                                  disabled={!selectedHookId}
+                                >
+                                  Use in VO
+                                </Button>
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
                       <label>
                         <div className="text-gray-700">Transitions</div>
                         <input
@@ -613,20 +839,29 @@ export default function VideoAssemblePage() {
                               <div className="text-sm">Dialogue timing</div>
                               {dialogueTiming.map((d, i) => (
                                 <div key={i} className="grid grid-cols-4 gap-2">
-                                  <input
-                                    className="rounded border px-2 py-1 text-sm"
-                                    placeholder="scene_id"
-                                    value={d.scene_id}
-                                    onChange={(e) =>
-                                      setDialogueTiming((prev) =>
-                                        prev.map((v, idx) =>
-                                          idx === i
-                                            ? { ...v, scene_id: e.target.value }
-                                            : v,
-                                        ),
-                                      )
-                                    }
-                                  />
+                                  {orderArray.length <= 1 ? (
+                                    <div className="text-xs text-gray-600 flex items-center">
+                                      scene: {orderArray[0] || ""}
+                                    </div>
+                                  ) : (
+                                    <input
+                                      className="rounded border px-2 py-1 text-sm"
+                                      placeholder="scene_id"
+                                      value={d.scene_id}
+                                      onChange={(e) =>
+                                        setDialogueTiming((prev) =>
+                                          prev.map((v, idx) =>
+                                            idx === i
+                                              ? {
+                                                  ...v,
+                                                  scene_id: e.target.value,
+                                                }
+                                              : v,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  )}
                                   <input
                                     className="rounded border px-2 py-1 text-sm"
                                     placeholder="time (s)"
@@ -684,9 +919,9 @@ export default function VideoAssemblePage() {
                                   setDialogueTiming((prev) => [
                                     ...prev,
                                     {
-                                      scene_id: "",
+                                      scene_id: orderArray[0] || "",
                                       t: 0,
-                                      character: "",
+                                      character: characterName || "Character",
                                       line: "",
                                     },
                                   ])
@@ -759,8 +994,9 @@ export default function VideoAssemblePage() {
                         <Button
                           onClick={buildManifestFromForm}
                           aria-label="Make video"
+                          disabled={making}
                         >
-                          Make video
+                          {making ? "Making…" : "Make video"}
                         </Button>
                         <Button
                           variant="secondary"
@@ -787,6 +1023,56 @@ export default function VideoAssemblePage() {
                         >
                           Populate JSON
                         </Button>
+                        {jobId && (
+                          <div className="text-xs text-gray-600">
+                            {sseEvents.length === 0
+                              ? "Queued…"
+                              : sseEvents[sseEvents.length - 1]?.status ||
+                                "processing"}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-3">
+                      <div className="mt-4 rounded border p-3 bg-white">
+                        <div className="text-sm font-medium mb-2">
+                          Overlay (CTA)
+                        </div>
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="rounded border"
+                            checked={overlayEnabled}
+                            onChange={(e) =>
+                              setOverlayEnabled(e.target.checked)
+                            }
+                          />
+                          <span className="text-gray-700">
+                            Enable CTA overlay
+                          </span>
+                        </label>
+                        {overlayEnabled && (
+                          <div className="mt-2 grid grid-cols-3 gap-2">
+                            <label className="text-sm">
+                              <div className="text-gray-700">Text</div>
+                              <input
+                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                value={ctaText}
+                                onChange={(e) => setCtaText(e.target.value)}
+                              />
+                            </label>
+                            <label className="text-sm">
+                              <div className="text-gray-700">Time (s)</div>
+                              <input
+                                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                value={ctaTime}
+                                onChange={(e) =>
+                                  setCtaTime(Number(e.target.value) || 0)
+                                }
+                              />
+                            </label>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
