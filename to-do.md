@@ -124,7 +124,7 @@ Acceptance (Week 2)
 
 - [ ] Apply `design.md` plan: tokens, `Layout`, `PageHeader`, UI primitives, onboarding, page upgrades
   - [ ] Milestone 1: tokens + Layout + primitives; Dashboard + Renders upgrades; helper text; Playwright updates
-  - [ ] Milestone 2: Scenes Plan/Render upgrades; validation UX
+  - [~] Milestone 2: Scenes Plan/Render upgrades; validation UX — JSON/Form tabs, live Ajv mapping, sticky validation; Render header chips and filmstrip thumbs
   - [ ] Milestone 3: Hooks approval/filters UX
   - [ ] Milestone 4: Video Assemble tabs; Review & Export polish; Quick tour
 

@@ -27,4 +27,50 @@ test.describe("Smoke", () => {
     const kpiTile = page.getByText(/In-progress jobs/i);
     await expect(kpiTile).toBeVisible();
   });
+
+  test("Scenes Plan form: invalid -> errors; valid -> submit enabled", async ({
+    page,
+  }) => {
+    await page.goto(`${GUI_BASE}/scenes-plan`);
+    await expect(
+      page.getByRole("heading", { name: "Scenes Plan" }),
+    ).toBeVisible();
+    // Switch to Form tab
+    await page.getByRole("button", { name: "Form" }).click();
+    // Clear required fields to trigger errors
+    const sceneId = page.locator("#scene_id");
+    await sceneId.fill("");
+    const duration = page.locator("#duration_s");
+    await duration.fill("");
+    // Submit should be disabled
+    const submitBtn = page.getByRole("button", { name: "Submit Plan" });
+    await expect(submitBtn).toBeDisabled();
+    // Fill minimal valid fields
+    await sceneId.fill("hook1_s1");
+    await duration.fill("2.0");
+    await page.locator("#composition").fill("tight mid on mascot");
+    await page.locator("#prompt").fill("mascot in startup office");
+    await page
+      .locator("#character_reference_image")
+      .fill("https://example.com/mascot.png");
+    // Submit should be enabled
+    await expect(submitBtn).toBeEnabled();
+  });
+
+  test("Scenes Render: queue single and batch", async ({ page }) => {
+    await page.goto(`${GUI_BASE}/scenes-render`);
+    await expect(
+      page.getByRole("heading", { name: "Scenes Render" }),
+    ).toBeVisible();
+    // Insert preset, render
+    await page.getByRole("button", { name: "Insert Ideogram preset" }).click();
+    const renderBtn = page.getByRole("button", { name: "Render" });
+    await renderBtn.click();
+    // Toast could appear; just assert Outputs section exists eventually or Live status present
+    await expect(page.getByText(/Live status/)).toBeVisible();
+    // Queue batch
+    const batchBtn = page.getByRole("button", { name: "Queue 15 renders" });
+    await expect(batchBtn).toBeEnabled();
+    await batchBtn.click();
+  });
 });

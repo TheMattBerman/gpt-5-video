@@ -1,6 +1,7 @@
 import Link from "next/link";
 import PageHeader from "../components/PageHeader";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Badge } from "../components/ui";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import sceneSpecsLineSchema from "../../../../packages/schemas/schemas/scene_specs_line.schema.json";
@@ -133,6 +134,13 @@ export default function ScenesRenderPage() {
     : resp?.data?.output
       ? [resp.data.output]
       : [];
+  const [guardrailWarning, setGuardrailWarning] = useState(false);
+  const [thumbsByIndex, setThumbsByIndex] = useState<Record<number, string[]>>(
+    {},
+  );
+  const thumbTimers = useRef<
+    Record<number, ReturnType<typeof setTimeout> | null>
+  >({});
 
   // Subscribe to SSE and collect step feed for this job
   useEffect(() => {
@@ -150,6 +158,7 @@ export default function ScenesRenderPage() {
               -25,
             ),
           );
+          if (step === "rejected_guardrail") setGuardrailWarning(true);
         }
       } catch {}
     };
@@ -160,15 +169,106 @@ export default function ScenesRenderPage() {
     };
   }, [apiBase, jobId]);
 
+  function scheduleThumbsFor(index: number, url: string) {
+    if (thumbTimers.current[index]) clearTimeout(thumbTimers.current[index]!);
+    thumbTimers.current[index] = setTimeout(() => {
+      void generateThumbs(url).then((arr: string[]) =>
+        setThumbsByIndex((prev) => ({ ...prev, [index]: arr })),
+      );
+    }, 200);
+  }
+
+  async function generateThumbs(url: string, count = 5): Promise<string[]> {
+    try {
+      const video = document.createElement("video");
+      video.src = url;
+      video.crossOrigin = "anonymous";
+      video.muted = true;
+      await new Promise((resolve, reject) => {
+        video.onloadedmetadata = resolve;
+        video.onerror = reject as any;
+      });
+      const duration = isFinite(video.duration) ? video.duration : 0;
+      if (!duration) return [];
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return [];
+      const vw = video.videoWidth || 1920;
+      const vh = video.videoHeight || 1080;
+      const width = 200;
+      const height = Math.round(width * (vh / vw));
+      canvas.width = width;
+      canvas.height = height;
+      const captures: string[] = [];
+      for (let i = 1; i <= count; i++) {
+        const t = (duration * i) / (count + 1);
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((resolve) => {
+          const onSeeked = () => {
+            ctx.drawImage(video, 0, 0, width, height);
+            try {
+              captures.push(canvas.toDataURL("image/jpeg", 0.7));
+            } catch {}
+            resolve();
+          };
+          video.currentTime = t;
+          video.onseeked = onSeeked;
+        });
+      }
+      try {
+        video.src = "";
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        video.load?.();
+      } catch {}
+      return captures;
+    } catch {
+      return [];
+    }
+  }
+
   return (
     <main className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
         <PageHeader
           title="Scenes Render"
           description="Paste a valid scene spec and queue renders. Watch live status and preview outputs."
+          actions={
+            <div className="flex items-center gap-2">
+              {jobId && (
+                <>
+                  <Badge variant="info">job {jobId}</Badge>
+                  {sseEvents.at(-1)?.status && (
+                    <Badge variant="default">{sseEvents.at(-1)!.status}</Badge>
+                  )}
+                  {typeof sseEvents.at(-1)?.attempt_count === "number" && (
+                    <Badge variant="default">
+                      #{sseEvents.at(-1)!.attempt_count}
+                    </Badge>
+                  )}
+                  {sseEvents.at(-1)?.step && (
+                    <Badge variant="default">{sseEvents.at(-1)!.step}</Badge>
+                  )}
+                </>
+              )}
+              {resp?.data?.cost_estimate_usd != null && (
+                <Badge variant="warning">
+                  est ${Number(resp.data.cost_estimate_usd).toFixed(2)}
+                </Badge>
+              )}
+              {resp?.data?.cost_actual_usd != null &&
+                Number(resp.data.cost_actual_usd) > 0 && (
+                  <Badge variant="info">
+                    ${Number(resp.data.cost_actual_usd).toFixed(2)}
+                  </Badge>
+                )}
+              {guardrailWarning && (
+                <Badge variant="warning">Guardrail warning</Badge>
+              )}
+            </div>
+          }
         />
         <header className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Scenes Render</h1>
+          <h1 className="sr-only">Scenes Render</h1>
           <nav className="flex gap-4 text-sm">
             <Link className="text-blue-600 underline" href="/">
               Dashboard
@@ -311,11 +411,26 @@ export default function ScenesRenderPage() {
               {outputs.map((u, i) => (
                 <div key={i} className="rounded border p-2">
                   {/\.mp4|\.webm/i.test(u) ? (
-                    <video
-                      src={u}
-                      controls
-                      className="max-h-60 w-full object-contain"
-                    />
+                    <div>
+                      <video
+                        src={u}
+                        controls
+                        className="max-h-60 w-full object-contain"
+                        onLoadedData={() => scheduleThumbsFor(i, u)}
+                      />
+                      {Array.isArray(thumbsByIndex[i]) &&
+                        thumbsByIndex[i]!.length > 0 && (
+                          <div className="mt-1 flex items-center gap-2 overflow-x-auto">
+                            {thumbsByIndex[i]!.map((t, j) => (
+                              <img
+                                key={j}
+                                src={t}
+                                className="h-12 w-auto rounded border"
+                              />
+                            ))}
+                          </div>
+                        )}
+                    </div>
                   ) : /\.png|\.jpg|\.jpeg|\.gif/i.test(u) ? (
                     <img
                       src={u}
