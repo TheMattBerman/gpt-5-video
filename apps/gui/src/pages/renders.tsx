@@ -53,9 +53,8 @@ export default function RendersPage() {
   const [pickerScenes, setPickerScenes] = useState<
     Array<{ sceneId: string; thumbUrl: string; jobId: string }>
   >([]);
-  const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [selectedSceneId, setSelectedSceneId] = useState<string>("");
+  const [selectedRefUrl, setSelectedRefUrl] = useState<string>("");
 
   async function loadPickerScenes() {
     try {
@@ -254,6 +253,7 @@ export default function RendersPage() {
             <Button
               size="sm"
               variant="primary"
+              className="bg-accent-600 from-accent-600 to-accent-700 text-white"
               aria-label="Build a video"
               onClick={async () => {
                 setPickerOpen(true);
@@ -440,8 +440,8 @@ export default function RendersPage() {
                     <div className="mt-2">
                       <div className="text-xs text-gray-600">Artifacts</div>
                       <div className="mt-1 space-y-1">
-                        {j.artifacts!.map((a) => (
-                          <div key={a.id} className="text-xs">
+                        {j.artifacts!.map((a, ai) => (
+                          <div key={`${a.id}-${ai}`} className="text-xs">
                             {a.url &&
                               (/\.mp4|\.webm/i.test(a.url) ? (
                                 <video
@@ -767,24 +767,21 @@ export default function RendersPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {pickerScenes.map((sc) => {
-                      const checked = selectedSceneIds.has(sc.sceneId);
+                    {pickerScenes.map((sc, idx) => {
+                      const checked = selectedSceneId === sc.sceneId;
                       return (
                         <label
-                          key={`${sc.jobId}-${sc.sceneId}`}
-                          className="rounded border p-2 flex gap-2 items-center cursor-pointer select-none"
+                          key={`${sc.jobId}-${sc.sceneId}-${idx}`}
+                          className={`rounded border p-2 flex gap-2 items-center cursor-pointer select-none ${checked ? "ring-2 ring-accent-600" : ""}`}
                         >
                           <input
-                            type="checkbox"
+                            type="radio"
+                            name="scene-pick"
                             className="mt-0.5"
                             checked={checked}
-                            onChange={(e) => {
-                              setSelectedSceneIds((prev) => {
-                                const next = new Set(prev);
-                                if (e.target.checked) next.add(sc.sceneId);
-                                else next.delete(sc.sceneId);
-                                return next;
-                              });
+                            onChange={() => {
+                              setSelectedSceneId(sc.sceneId);
+                              setSelectedRefUrl(sc.thumbUrl || "");
                             }}
                           />
                           {sc.thumbUrl ? (
@@ -805,36 +802,17 @@ export default function RendersPage() {
                   </div>
                 )}
               </div>
-              <div className="mt-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setSelectedSceneIds(
-                        new Set(pickerScenes.map((p) => p.sceneId)),
-                      );
-                    }}
-                  >
-                    Select all
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setSelectedSceneIds(new Set())}
-                  >
-                    Clear
-                  </Button>
-                </div>
+              <div className="mt-4 flex items-center justify-end">
                 <Button
                   onClick={() => {
-                    const order = Array.from(selectedSceneIds);
+                    const order = selectedSceneId ? [selectedSceneId] : [];
                     if (order.length === 0) return;
                     const params = new URLSearchParams();
                     params.set("order", order.join(","));
+                    if (selectedRefUrl) params.set("ref", selectedRefUrl);
                     router.push(`/video-assemble?${params.toString()}`);
                   }}
-                  disabled={selectedSceneIds.size === 0}
+                  disabled={!selectedSceneId}
                 >
                   Continue to Video
                 </Button>

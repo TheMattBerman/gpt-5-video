@@ -2172,7 +2172,18 @@ async function handleVideoAssembleJob(
         : "veo-3";
     let pred: any;
     try {
-      pred = await createPrediction(MODEL_VERSIONS[modelKey], { prompt });
+      const input: any = { prompt };
+      // If refs provided, send the first reference as an input image for identity anchoring
+      try {
+        const refs = manifest?.refs || {};
+        const firstRef = Array.isArray(manifest?.order)
+          ? refs[manifest.order[0]]
+          : undefined;
+        if (typeof firstRef === "string" && firstRef) {
+          input.image = firstRef;
+        }
+      } catch {}
+      pred = await createPrediction(MODEL_VERSIONS[modelKey], input);
     } catch (e) {
       await scheduleRetry(jobId, e);
       return;

@@ -42,7 +42,7 @@ export default function VideoAssemblePage() {
   >([]);
   const validate = useMemo(() => ajv.compile(videoManifestSchema as any), []);
   const { show } = useToast();
-  const [order, setOrder] = useState<string>("hook1_s1, hook1_s2");
+  const [order, setOrder] = useState<string>("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [filmstripUrls, setFilmstripUrls] = useState<string[]>([]);
   const [transitions, setTransitions] = useState<string>("hard_cuts");
@@ -54,11 +54,13 @@ export default function VideoAssemblePage() {
   const [audioMode, setAudioMode] = useState<"none" | "voiceover" | "dialogue">(
     "none",
   );
-  const [voiceStyle, setVoiceStyle] = useState<string>("confident_casual");
+  const [voiceStyle, setVoiceStyle] = useState<string>("conversational_ugcs");
   const [language, setLanguage] = useState<string>("en");
   const [pace, setPace] = useState<string>("fast");
   const [volume, setVolume] = useState<string>("normal");
-  const [voPrompt, setVoPrompt] = useState<string>("");
+  const [voPrompt, setVoPrompt] = useState<string>(
+    "Hey — quick one: your CAC isn’t high, your loop is broken. Fix the loop, win your market.",
+  );
   const [dialogueTiming, setDialogueTiming] = useState<
     Array<{ scene_id: string; t: number; character: string; line: string }>
   >([]);
@@ -97,12 +99,18 @@ export default function VideoAssemblePage() {
   useEffect(() => {
     try {
       const q = router.query?.order as string | undefined;
+      const ref = router.query?.ref as string | undefined;
       if (q && typeof q === "string") {
         const ord = q
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean);
         if (ord.length) setOrder(ord.join(", "));
+        if (ref && typeof ref === "string") {
+          setRefs(() =>
+            ord.slice(0, 1).map((scene_id) => ({ scene_id, image_url: ref })),
+          );
+        }
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,8 +190,9 @@ export default function VideoAssemblePage() {
     }
     const pretty = JSON.stringify(candidate, null, 2);
     setText(pretty);
-    // clear errors and keep form → JSON as source of truth
     setErrors([]);
+    // Auto-assemble to reduce steps
+    void submit();
   }
 
   const orderArray = order
@@ -416,6 +425,15 @@ export default function VideoAssemblePage() {
                     ${Number(resp.data.cost_actual_usd).toFixed(2)}
                   </Badge>
                 )}
+              {/* Link to Renders when job exists */}
+              {jobId && (
+                <Link
+                  href="/renders"
+                  className="rounded-sm bg-blue-600 text-white px-2 py-1 text-xs"
+                >
+                  View in Renders →
+                </Link>
+              )}
             </div>
           }
         />
@@ -513,7 +531,7 @@ export default function VideoAssemblePage() {
                         </div>
                       </label>
                       <div className="col-span-3">
-                        <div className="mt-4 rounded border p-3">
+                        <div className="mt-4 rounded border p-3 bg-white">
                           <div className="text-sm font-medium mb-2">Audio</div>
                           <div className="grid grid-cols-2 gap-3">
                             <label className="text-sm">
@@ -533,11 +551,21 @@ export default function VideoAssemblePage() {
                             </label>
                             <label className="text-sm">
                               <div className="text-gray-700">Voice style</div>
-                              <input
+                              <select
                                 className="mt-1 w-full rounded border px-2 py-1 text-sm"
                                 value={voiceStyle}
                                 onChange={(e) => setVoiceStyle(e.target.value)}
-                              />
+                              >
+                                <option value="conversational_ugcs">
+                                  Conversational (UGC)
+                                </option>
+                                <option value="confident_casual">
+                                  Confident casual
+                                </option>
+                                <option value="authoritative">
+                                  Authoritative
+                                </option>
+                              </select>
                             </label>
                             <label className="text-sm">
                               <div className="text-gray-700">Language</div>
@@ -674,70 +702,88 @@ export default function VideoAssemblePage() {
                         </div>
                       </div>
                       <div className="col-span-3">
-                        <div className="mt-4 rounded border p-3">
+                        <div className="mt-4 rounded border p-3 bg-white">
                           <div className="text-sm font-medium mb-2">
-                            Per‑scene reference images
+                            Reference image
                           </div>
                           <div className="space-y-2">
-                            {refs.map((r, i) => (
-                              <div
-                                key={i}
-                                className="grid grid-cols-3 gap-2 items-center"
-                              >
-                                <input
-                                  className="rounded border px-2 py-1 text-sm"
-                                  placeholder="scene_id"
-                                  value={r.scene_id}
-                                  onChange={(e) =>
-                                    setRefs((prev) =>
-                                      prev.map((v, idx) =>
-                                        idx === i
-                                          ? { ...v, scene_id: e.target.value }
-                                          : v,
-                                      ),
-                                    )
-                                  }
-                                />
-                                <input
-                                  className="rounded border px-2 py-1 text-sm col-span-2"
-                                  placeholder="reference image url"
-                                  value={r.image_url}
-                                  onChange={(e) =>
-                                    setRefs((prev) =>
-                                      prev.map((v, idx) =>
-                                        idx === i
-                                          ? { ...v, image_url: e.target.value }
-                                          : v,
-                                      ),
-                                    )
-                                  }
-                                />
-                              </div>
-                            ))}
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() =>
-                                setRefs((prev) => [
-                                  ...prev,
-                                  { scene_id: "", image_url: "" },
-                                ])
-                              }
-                            >
-                              Add reference
-                            </Button>
+                            <div className="grid grid-cols-3 gap-2 items-center">
+                              <input
+                                className="rounded border px-2 py-1 text-sm"
+                                placeholder="scene_id"
+                                value={
+                                  order
+                                    .split(",")
+                                    .map((s) => s.trim())
+                                    .filter(Boolean)[0] ||
+                                  refs[0]?.scene_id ||
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  setRefs([
+                                    {
+                                      scene_id: e.target.value,
+                                      image_url: refs[0]?.image_url || "",
+                                    },
+                                  ])
+                                }
+                              />
+                              <input
+                                className="rounded border px-2 py-1 text-sm col-span-2"
+                                placeholder="reference image url"
+                                value={refs[0]?.image_url || ""}
+                                onChange={(e) =>
+                                  setRefs([
+                                    {
+                                      scene_id:
+                                        refs[0]?.scene_id ||
+                                        order
+                                          .split(",")
+                                          .map((s) => s.trim())
+                                          .filter(Boolean)[0] ||
+                                        "",
+                                      image_url: e.target.value,
+                                    },
+                                  ])
+                                }
+                              />
+                            </div>
                             <div className="mt-1 text-xs text-gray-600">
-                              Use the winning scene image (or a character
-                              headshot) to stabilize identity per scene.
+                              Auto-filled from Renders selection. This anchors
+                              identity in Veo.
                             </div>
                           </div>
                         </div>
                       </div>
-                      <div className="col-span-3">
+                      <div className="col-span-3 flex items-center gap-2">
+                        <Button
+                          onClick={buildManifestFromForm}
+                          aria-label="Make video"
+                        >
+                          Make video
+                        </Button>
                         <Button
                           variant="secondary"
-                          onClick={buildManifestFromForm}
-                          aria-label="Populate JSON"
+                          onClick={() => {
+                            const candidate = {
+                              model,
+                              order: order
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean),
+                              transitions,
+                              motion,
+                              audio: {
+                                mode: audioMode,
+                                voice_style: voiceStyle,
+                                language,
+                                pace,
+                                volume,
+                                vo_prompt: voPrompt,
+                              },
+                            };
+                            setText(JSON.stringify(candidate, null, 2));
+                          }}
                         >
                           Populate JSON
                         </Button>
@@ -782,6 +828,14 @@ export default function VideoAssemblePage() {
                         >
                           Assemble
                         </Button>
+                        {jobId && (
+                          <Link
+                            href="/renders"
+                            className="rounded-sm bg-blue-600 text-white px-2 py-1 text-xs"
+                          >
+                            Open in Renders →
+                          </Link>
+                        )}
                       </div>
                       {(resp || jobDetail) && (
                         <div className="mt-3 space-y-2 text-sm">

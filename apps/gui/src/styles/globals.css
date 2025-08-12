@@ -23,6 +23,9 @@
   a {
     @apply underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 rounded;
   }
+  button {
+    @apply focus:outline-none;
+  }
   :focus-visible {
     @apply outline-none ring-2 ring-gray-400 ring-offset-2;
   }

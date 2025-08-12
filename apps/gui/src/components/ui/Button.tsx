@@ -16,12 +16,13 @@ const sizes: Record<Size, string> = {
 };
 const variants: Record<Variant, string> = {
   primary:
-    "bg-accent-600 bg-gradient-to-b from-accent-600 to-accent-700 text-white hover:from-accent-700 hover:to-accent-800 focus-visible:ring-accent-600",
+    "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus-visible:ring-blue-600",
   // Stronger contrast on white surfaces; visible border and text color
   secondary:
     "border border-gray-400 bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200 focus-visible:ring-gray-400",
-  // Keep ghost subtle but readable
-  ghost: "text-gray-900 hover:bg-gray-100 active:bg-gray-200",
+  // Keep ghost subtle but readable, with visible border on white surfaces
+  ghost:
+    "border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 active:bg-gray-100",
   danger:
     "bg-gradient-to-b from-red-600 to-red-700 text-white hover:from-red-700 hover:to-red-800 focus-visible:ring-red-600",
 };
