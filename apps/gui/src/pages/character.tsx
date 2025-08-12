@@ -63,6 +63,10 @@ export default function CharacterPage() {
   }, []);
   const prefixRef = useRef<string>(`dev/character/${Date.now()}/`);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [savedItems, setSavedItems] = useState<
+    Array<{ id: string; data: any; created_at: string }>
+  >([]);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
 
   // Load winner from localStorage
   useEffect(() => {
@@ -113,6 +117,50 @@ export default function CharacterPage() {
   const handlePick = useCallback((fl: FileList | null) => {
     const arr = fl ? Array.from(fl) : [];
     setFiles(arr);
+  }, []);
+
+  const populateFromSaved = useCallback((row: { id: string; data: any }) => {
+    const d = (row?.data || {}) as any;
+    setName(String(d?.name || ""));
+    setStyleInput(
+      (Array.isArray(d?.style_constraints) ? d.style_constraints : []).join(
+        ", ",
+      ),
+    );
+    setMaskInput((Array.isArray(d?.mask_rules) ? d.mask_rules : []).join(", "));
+    setUploaded(
+      (Array.isArray(d?.reference_images) ? d.reference_images : []).map(
+        (u: string, i: number) => ({
+          key: `${row.id}:${i}`,
+          previewUrl: u,
+          contentType: "image/*",
+        }),
+      ),
+    );
+  }, []);
+
+  const refreshSaved = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiBase}/character`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(String(data?.error || res.statusText));
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setSavedItems(items);
+      if (items.length && !selectedCharacterId) {
+        setSelectedCharacterId(items[0].id);
+      }
+    } catch (e: any) {
+      show({
+        title: "Failed to load saved characters",
+        description: String(e?.message || e),
+        variant: "error",
+      });
+    }
+  }, [apiBase, selectedCharacterId, show]);
+
+  useEffect(() => {
+    refreshSaved();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const uploadAll = useCallback(async () => {
@@ -321,53 +369,59 @@ export default function CharacterPage() {
         <Card className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium">Saved Characters</div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={async () => {
-                try {
-                  const res = await fetch(`${apiBase}/character`);
-                  const data = await res.json();
-                  if (!res.ok)
-                    throw new Error(String(data?.error || res.statusText));
-                  const items = Array.isArray(data?.items) ? data.items : [];
-                  if (!items.length) {
-                    show({
-                      title: "No saved characters yet",
-                      variant: "info" as any,
-                    });
-                    return;
-                  }
-                  const first = items[0];
-                  const d = (first?.data || {}) as any;
-                  setName(String(d?.name || ""));
-                  setStyleInput((d?.style_constraints || []).join(", "));
-                  setMaskInput((d?.mask_rules || []).join(", "));
-                  setUploaded(
-                    (Array.isArray(d?.reference_images)
-                      ? d.reference_images
-                      : []
-                    ).map((u: string, i: number) => ({
-                      key: `${first.id}:${i}`,
-                      previewUrl: u,
-                      contentType: "image/*",
-                    })),
-                  );
-                  show({ title: `Loaded ${first.id}`, variant: "success" });
-                } catch (e: any) {
-                  show({
-                    title: "Load failed",
-                    description: String(e?.message || e),
-                    variant: "error",
-                  });
-                }
-              }}
-            >
-              Load latest
+            <Button variant="secondary" size="sm" onClick={refreshSaved}>
+              Refresh
             </Button>
           </div>
+          {savedItems.length === 0 ? (
+            <div className="text-xs text-gray-600">No saved characters yet</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+              <label className="text-sm col-span-2">
+                <span className="text-gray-700">Select a saved character</span>
+                <Select
+                  className="mt-1"
+                  value={selectedCharacterId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setSelectedCharacterId(id);
+                    const found = savedItems.find((it) => it.id === id);
+                    if (found) {
+                      populateFromSaved(found);
+                      show({ title: `Loaded ${id}`, variant: "success" });
+                    }
+                  }}
+                >
+                  {savedItems.map((it) => {
+                    const display = String((it.data as any)?.name || it.id);
+                    return (
+                      <option key={it.id} value={it.id}>
+                        {display}
+                      </option>
+                    );
+                  })}
+                </Select>
+              </label>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  if (!selectedCharacterId) return;
+                  const found = savedItems.find(
+                    (it) => it.id === selectedCharacterId,
+                  );
+                  if (found) {
+                    populateFromSaved(found);
+                    show({ title: `Loaded ${selectedCharacterId}` });
+                  }
+                }}
+              >
+                Load
+              </Button>
+            </div>
+          )}
           <div className="text-xs text-gray-600">
-            This loads the most recently saved character profile.
+            Selecting a character will populate the fields and preview images.
           </div>
         </Card>
 

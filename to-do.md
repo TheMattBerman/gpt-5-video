@@ -144,8 +144,10 @@ Acceptance (Week 2)
 - [x] Beauty pass refinement (batch 2) — Inter font + background texture + Scenes Plan card wrap
   - Impact: Enabled Inter globally in `_app.tsx`; added subtle grid texture to app background in `globals.css`; wrapped `Scenes Plan` body in `Card` and removed nested main to tighten layout. Files: `apps/gui/src/pages/_app.tsx`, `apps/gui/src/styles/globals.css`, `apps/gui/src/pages/scenes-plan.tsx`. Builds green.
 
-- [x] Character page upload UX polish
+  - [x] Character page upload UX polish
   - Impact: On `apps/gui/src/pages/character.tsx`, replaced raw inputs with UI primitives; added clear `Choose images` secondary button and primary `Upload N selected`; submit now enabled after at least one image is uploaded (server-side schema validation still enforced). Removed duplicate seed lock checkbox; improved selects to use `Select` component. Builds green.
+  - [x] Character page: Saved Characters dropdown
+  - Impact: Added Saved Characters section with dropdown bound to `/character` API, plus Refresh and Load actions. Selecting a saved character populates name, style/mask fields, and previews reference images. Files: `apps/gui/src/pages/character.tsx`. Builds green.
 
 Acceptance (Week 3)
 
