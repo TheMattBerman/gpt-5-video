@@ -363,3 +363,90 @@ export async function scGetTiktokVideo(opts: {
     headers: { "x-api-key": apiKey, Accept: "application/json" },
   });
 }
+
+// ---------- Instagram endpoints ----------
+
+// GET /v1/instagram/post — post/reel detail
+export type ScInstagramPostDetail = {
+  data?: any;
+  status?: string;
+  [k: string]: unknown;
+};
+
+export async function scGetInstagramPost(opts: {
+  apiKey: string;
+  url: string; // Instagram post/reel URL
+  trim?: boolean;
+  baseUrl?: string;
+}): Promise<ScInstagramPostDetail> {
+  const {
+    apiKey,
+    url: postUrl,
+    trim,
+    baseUrl = "https://api.scrapecreators.com",
+  } = opts;
+  if (!apiKey) throw new Error("apiKey required");
+  if (!postUrl) throw new Error("url required");
+  const url = buildUrl(baseUrl, "/v1/instagram/post", { url: postUrl, trim });
+  return fetchJson<ScInstagramPostDetail>(url, {
+    method: "GET",
+    headers: { "x-api-key": apiKey, Accept: "application/json" },
+  });
+}
+
+// GET /v1/instagram/user/reels/simple — list reels
+export async function scGetInstagramUserReelsSimple(opts: {
+  apiKey: string;
+  user_id?: string;
+  handle?: string;
+  amount?: number; // default 12
+  trim?: boolean;
+  baseUrl?: string;
+}): Promise<any[]> {
+  const {
+    apiKey,
+    user_id,
+    handle,
+    amount,
+    trim,
+    baseUrl = "https://api.scrapecreators.com",
+  } = opts;
+  if (!apiKey) throw new Error("apiKey required");
+  if (!user_id && !handle) throw new Error("user_id or handle required");
+  const url = buildUrl(baseUrl, "/v1/instagram/user/reels/simple", {
+    user_id,
+    handle,
+    amount,
+    trim,
+  });
+  const data = await fetchJson<any[]>(url, {
+    method: "GET",
+    headers: { "x-api-key": apiKey, Accept: "application/json" },
+  });
+  return Array.isArray(data) ? data : [];
+}
+
+// GET /v2/instagram/media/transcript — transcript for IG post/reel
+export async function scGetInstagramMediaTranscript(opts: {
+  apiKey: string;
+  url: string;
+  baseUrl?: string;
+}): Promise<{
+  success: boolean;
+  transcripts?: Array<{ id: string; shortcode?: string; text: string }>;
+}> {
+  const {
+    apiKey,
+    url: postUrl,
+    baseUrl = "https://api.scrapecreators.com",
+  } = opts;
+  if (!apiKey) throw new Error("apiKey required");
+  if (!postUrl) throw new Error("url required");
+  const url = buildUrl(baseUrl, "/v2/instagram/media/transcript", {
+    url: postUrl,
+  });
+  return fetchJson(url, {
+    method: "GET",
+    headers: { "x-api-key": apiKey, Accept: "application/json" },
+  });
+}
