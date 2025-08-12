@@ -1434,8 +1434,9 @@ app.get("/uploads/debug-get", async (req: Request, res: Response) => {
 // Direct upload for debugging write path without presign
 app.post("/uploads/debug-put", async (req: Request, res: Response) => {
   try {
-    const { key, content, content_type } = req.body || {};
-    if (!key || content === undefined)
+    const { key, content, content_base64, content_type, is_data_url } =
+      (req.body || {}) as any;
+    if (!key || (content === undefined && !content_base64))
       return res.status(400).json({ error: "key_and_content_required" });
     const s3 = createS3Client({
       endpoint: process.env.S3_ENDPOINT || "http://localhost:9000",
@@ -1445,12 +1446,25 @@ app.post("/uploads/debug-put", async (req: Request, res: Response) => {
       bucket: process.env.S3_BUCKET || "gpt5video",
       forcePathStyle: true,
     });
+    let body: any;
+    if (typeof content_base64 === "string" && content_base64.length > 0) {
+      let b64 = content_base64;
+      if (is_data_url && /^data:/i.test(b64)) {
+        const m = b64.match(/^data:[^;]+;base64,(.*)$/);
+        b64 = m ? m[1] : b64;
+      }
+      body = Buffer.from(b64, "base64");
+    } else if (typeof content === "string") {
+      body = content;
+    } else {
+      body = JSON.stringify(content);
+    }
     await putObjectDirect(
       s3 as any,
       process.env.S3_BUCKET || "gpt5video",
       key,
-      typeof content === "string" ? content : JSON.stringify(content),
-      content_type || "text/plain",
+      body,
+      content_type || "application/octet-stream",
     );
     try {
       const head = await headObject(

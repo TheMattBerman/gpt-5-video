@@ -129,6 +129,7 @@ export default function CharacterPage() {
         const { url } = (await signRes.json()) as { url: string; key: string };
         const putRes = await fetch(url, {
           method: "PUT",
+          // Some S3-compatible presigns reject extra headers; only send Content-Type
           headers: { "Content-Type": ctype },
           body: f,
         });

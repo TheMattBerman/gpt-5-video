@@ -9,7 +9,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  "inline-flex items-center justify-center rounded-sm font-medium transition-colors duration-200 ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 shadow-sm hover:shadow-card";
+  "inline-flex items-center justify-center rounded-sm font-medium transition-colors duration-200 ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60 shadow-sm hover:shadow-card border-transparent";
 const sizes: Record<Size, string> = {
   sm: "text-xs px-2.5 py-1.5",
   md: "text-sm px-3 py-1.5",
@@ -19,9 +19,9 @@ const variants: Record<Variant, string> = {
     "bg-accent-600 text-white hover:bg-accent-700 focus-visible:ring-accent-600",
   // Stronger contrast on white surfaces; visible border and text color
   secondary:
-    "border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus-visible:ring-gray-400",
+    "border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 active:bg-gray-100 focus-visible:ring-gray-400",
   // Keep ghost subtle but readable
-  ghost: "text-gray-900 hover:bg-gray-100",
+  ghost: "text-gray-900 hover:bg-gray-100 active:bg-gray-200",
   danger: "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600",
 };
 
