@@ -223,6 +223,9 @@ app.post("/hooks/mine", async (req: Request, res: Response) => {
         });
         const client = new ScrapeCreatorsClient({
           apiKey: process.env.SCRAPECREATORS_API_KEY || "dev",
+          baseUrl: process.env.SCRAPECREATORS_BASE_URL,
+          userAgent: `gpt5video/api (+hooks-miner)`,
+          requestId: (req as any).id || undefined,
         });
         const sources = Array.isArray(body?.sources) ? body.sources : [];
         const mined = await client.mine(sources);

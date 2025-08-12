@@ -155,31 +155,76 @@ export class ScrapeCreatorsClient {
     source: ScrapeCreatorsSource,
     cursor?: string,
   ): Promise<{ items: ScrapeCreatorsItem[]; next_cursor?: string }> {
-    // For MVP: this adapter is a stub that simulates fetch results.
-    // Replace with real HTTP integration if vendor docs are available.
-    // We simulate 5 items per page and 2 pages.
-    const sample: ScrapeCreatorsItem[] = Array.from({ length: 5 }).map(
-      (_, i) => {
-        const idx = (cursor ? Number(cursor) : 0) * 5 + i + 1;
-        return {
-          platform: source.platform,
-          author: source.handle.startsWith("@") ? source.handle : "@creator",
-          url: `https://example.com/${source.platform}/${encodeURIComponent(source.handle)}/${idx}`,
-          caption_or_transcript: `Sample caption ${idx}`,
-          metrics: {
-            views: Math.floor(Math.random() * 100000),
-            likes: Math.floor(Math.random() * 1000),
-            comments: Math.floor(Math.random() * 100),
-          },
-          detected_format: "pattern_interrupt",
-          platform_post_id: `${source.platform}_${encodeURIComponent(source.handle)}_${idx}`,
-        };
+    // If no real API key provided, return stubbed sample data
+    if (!this.options.apiKey || this.options.apiKey === "dev") {
+      const sample: ScrapeCreatorsItem[] = Array.from({ length: 5 }).map(
+        (_, i) => {
+          const idx = (cursor ? Number(cursor) : 0) * 5 + i + 1;
+          return {
+            platform: source.platform,
+            author: source.handle.startsWith("@") ? source.handle : "@creator",
+            url: `https://example.com/${source.platform}/${encodeURIComponent(source.handle)}/${idx}`,
+            caption_or_transcript: `Sample caption ${idx}`,
+            metrics: {
+              views: Math.floor(Math.random() * 100000),
+              likes: Math.floor(Math.random() * 1000),
+              comments: Math.floor(Math.random() * 100),
+            },
+            detected_format: "pattern_interrupt",
+            platform_post_id: `${source.platform}_${encodeURIComponent(source.handle)}_${idx}`,
+          };
+        },
+      );
+      const next = cursor ? undefined : "1";
+      return new Promise((resolve) =>
+        setTimeout(() => resolve({ items: sample, next_cursor: next }), 200),
+      );
+    }
+
+    // Real integration: call ScrapeCreators HTTP API
+    const base = this.options.baseUrl?.replace(/\/$/, "");
+    const url = new URL(`${base}/v1/mine`);
+    url.searchParams.set("platform", source.platform);
+    url.searchParams.set(
+      "handle",
+      source.handle.startsWith("@") ? source.handle.slice(1) : source.handle,
+    );
+    url.searchParams.set("limit", String(Math.max(1, source.limit || 50)));
+    if (cursor) url.searchParams.set("cursor", cursor);
+
+    const resp = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${this.options.apiKey}`,
+        "User-Agent": this.options.userAgent || "gpt5video/0.1 (+hooks-miner)",
       },
-    );
-    const next = cursor ? undefined : "1"; // two pages: undefined means last
-    return new Promise((resolve) =>
-      setTimeout(() => resolve({ items: sample, next_cursor: next }), 200),
-    );
+    });
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`scrapecreators_failed ${resp.status} ${body}`);
+    }
+    const data = (await resp.json()) as {
+      items: any[];
+      next_cursor?: string;
+    };
+    const mapped: ScrapeCreatorsItem[] = (data.items || []).map((it: any) => ({
+      platform: String(it.platform || source.platform),
+      author: String(it.author || it.handle || source.handle),
+      url: String(it.url || it.permalink || ""),
+      caption_or_transcript: String(
+        it.caption || it.transcript || it.text || "",
+      ),
+      metrics: it.metrics || undefined,
+      detected_format: String(it.detected_format || it.format || ""),
+      scraper: "scrapecreators",
+      scrape_meta: {
+        request_id: this.options.requestId,
+        latency_ms: 0,
+      },
+      platform_post_id: String(
+        it.platform_post_id || it.post_id || it.id || "",
+      ),
+    }));
+    return { items: mapped, next_cursor: data.next_cursor };
   }
 }
 

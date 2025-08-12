@@ -984,6 +984,16 @@ export default function HooksPage() {
           ) : (
             <div className="mt-3">
               <div className="text-sm font-medium mb-1">Corpus</div>
+              {corpusFiltered.some((c) =>
+                String(c.url || "").includes("example.com"),
+              ) && (
+                <div className="mb-2 rounded border border-yellow-200 bg-yellow-50 p-2 text-[12px] text-yellow-900">
+                  Using stub sample data. Add{" "}
+                  <span className="font-mono">SCRAPECREATORS_API_KEY</span> in{" "}
+                  <span className="font-mono">apps/api/.env</span> and restart
+                  the API to enable real scraping.
+                </div>
+              )}
               <div className="overflow-auto">
                 <Table className="text-xs">
                   <THead>
