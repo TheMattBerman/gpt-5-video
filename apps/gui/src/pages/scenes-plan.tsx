@@ -564,12 +564,20 @@ export default function ScenesPlanPage() {
                               id="character_id"
                               className="rounded border px-2 py-1 text-sm w-full"
                               value={form.character_id || ""}
-                              onChange={(e) =>
+                              onChange={(e) => {
+                                const id = e.target.value;
+                                const selected = characters.find(
+                                  (c) => c.id === id,
+                                );
                                 setForm((f) => ({
                                   ...f,
-                                  character_id: e.target.value,
-                                }))
-                              }
+                                  character_id: id,
+                                  character_reference_image:
+                                    selected?.image ||
+                                    f.character_reference_image ||
+                                    "",
+                                }));
+                              }}
                             >
                               <option value="">— Select —</option>
                               {characters.map((c) => (
@@ -1015,7 +1023,6 @@ function sceneFromForm(f: FormState): SceneSpec {
       aspect_ratio: f.aspect_ratio,
       rendering_speed: f.rendering_speed || "Default",
     };
-    if (f.character_id) (base as any).character_id = f.character_id;
   } else if (f.model === "imagen-4") {
     base.model_inputs = {
       prompt: f.prompt,
