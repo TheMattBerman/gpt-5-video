@@ -137,6 +137,20 @@ export async function ensureTables() {
     `create index if not exists idx_hook_synth_synth_id on hook_synth(synth_id);`,
   );
 
+  // Brands: persist brand_profile versions
+  await pool.query(`
+    create table if not exists brands (
+      id text primary key,
+      brand_key text not null,
+      version integer not null default 1,
+      data jsonb not null,
+      created_at timestamptz default now()
+    );
+  `);
+  await pool.query(
+    `create index if not exists idx_brands_brand_key_created_at on brands(brand_key, created_at desc);`,
+  );
+
   // Characters and stability seeds
   await pool.query(`
     create table if not exists characters (
@@ -700,4 +714,44 @@ export async function insertCharacterSeeds(
     );
   }
   await pool.query(text, values);
+}
+
+// --- Brands helpers ---
+export async function getNextBrandVersion(brandKey: string) {
+  const { rows } = await pool.query(
+    `select coalesce(max(version), 0)::int as v from brands where brand_key = $1`,
+    [brandKey],
+  );
+  return Number(rows[0]?.v || 0) + 1;
+}
+
+export async function insertBrandProfile(row: {
+  id: string;
+  brandKey: string;
+  data: unknown;
+  version: number;
+}) {
+  await pool.query(
+    `insert into brands (id, brand_key, version, data) values ($1, $2, $3, $4) on conflict (id) do nothing`,
+    [row.id, row.brandKey, row.version, JSON.stringify(row.data)],
+  );
+}
+
+export async function getLatestBrandProfile(brandKey?: string) {
+  if (brandKey && brandKey.trim().length > 0) {
+    const { rows } = await pool.query(
+      `select * from brands where brand_key = $1 order by created_at desc limit 1`,
+      [brandKey],
+    );
+    return rows[0] || null;
+  }
+  const { rows } = await pool.query(
+    `select * from brands order by created_at desc limit 1`,
+  );
+  return rows[0] || null;
+}
+
+export async function getBrandProfileById(id: string) {
+  const { rows } = await pool.query(`select * from brands where id = $1`, [id]);
+  return rows[0] || null;
 }

@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PageHeader from "../components/PageHeader";
 import { ajv } from "@gpt5video/shared";
+import { useToast } from "../components/Toast";
 // For Week 1 in GUI, import schema JSON directly to avoid package export quirks from the schemas package
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -12,12 +13,14 @@ export default function BrandIngestPage() {
     () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000",
     [],
   );
+  const { show } = useToast();
   const [jsonText, setJsonText] = useState<string>(() =>
     JSON.stringify(exampleBrandProfile, null, 2),
   );
   const [errors, setErrors] = useState<string[]>([]);
   const [resultId, setResultId] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const validator = useMemo(() => ajv.compile(brandProfileSchema as any), []);
 
@@ -41,6 +44,50 @@ export default function BrandIngestPage() {
     }
   }
 
+  // Load latest saved profile on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        // Prefer server latest; fall back to localStorage
+        const res = await fetch(`${apiBase}/ingest/brand/latest`);
+        if (res.ok) {
+          const data = await res.json();
+          const obj = data?.data;
+          if (obj && !cancelled) {
+            const txt = JSON.stringify(obj, null, 2);
+            setJsonText(txt);
+            validate(txt);
+          }
+        } else {
+          try {
+            const local = window.localStorage.getItem(
+              "gpt5video_brand_profile",
+            );
+            if (local && !cancelled) {
+              setJsonText(local);
+              validate(local);
+            }
+          } catch {}
+        }
+      } catch {
+        try {
+          const local = window.localStorage.getItem("gpt5video_brand_profile");
+          if (local && !cancelled) {
+            setJsonText(local);
+            validate(local);
+          }
+        } catch {}
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+
   async function handleSubmit() {
     const { valid, obj } = validate(jsonText);
     if (!valid || !obj) return;
@@ -55,8 +102,20 @@ export default function BrandIngestPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "submit_failed");
       setResultId(String(data.id || ""));
+      try {
+        window.localStorage.setItem(
+          "gpt5video_brand_profile",
+          JSON.stringify(obj, null, 2),
+        );
+      } catch {}
+      show({ title: "Brand saved", variant: "success" });
     } catch (err: any) {
       setErrors([`Submit error: ${err?.message || String(err)}`]);
+      show({
+        title: "Save failed",
+        description: String(err?.message || err),
+        variant: "error",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -94,7 +153,9 @@ export default function BrandIngestPage() {
             <div className="flex flex-col">
               <div className="text-sm font-medium">Validation</div>
               <div className="mt-2 flex-1 overflow-auto rounded border bg-gray-50 p-2 text-xs">
-                {errors.length === 0 ? (
+                {loading ? (
+                  <div className="text-gray-600">Loading…</div>
+                ) : errors.length === 0 ? (
                   <div className="text-green-700">Valid ✔︎</div>
                 ) : (
                   <ul className="list-disc pl-4">
@@ -113,6 +174,47 @@ export default function BrandIngestPage() {
                   className="rounded bg-black px-3 py-1.5 text-white text-sm disabled:opacity-50"
                 >
                   {submitting ? "Submitting..." : "Submit"}
+                </button>
+                <button
+                  onClick={() => {
+                    try {
+                      window.localStorage.setItem(
+                        "gpt5video_brand_profile",
+                        jsonText,
+                      );
+                      show({ title: "Saved locally", variant: "success" });
+                    } catch {
+                      show({ title: "Local save failed", variant: "error" });
+                    }
+                  }}
+                  className="rounded border px-3 py-1.5 text-sm"
+                >
+                  Save locally
+                </button>
+                <button
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      const res = await fetch(`${apiBase}/ingest/brand/latest`);
+                      if (!res.ok) throw new Error("not_found");
+                      const data = await res.json();
+                      const txt = JSON.stringify(data?.data ?? {}, null, 2);
+                      setJsonText(txt);
+                      validate(txt);
+                      show({ title: "Loaded latest", variant: "success" });
+                    } catch (e: any) {
+                      show({
+                        title: "Load failed",
+                        description: String(e?.message || e),
+                        variant: "error",
+                      });
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  className="rounded border px-3 py-1.5 text-sm"
+                >
+                  Load latest
                 </button>
                 {resultId && (
                   <div className="text-sm">

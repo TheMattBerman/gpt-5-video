@@ -5,6 +5,7 @@ import pino from "pino";
 import pinoHttp from "pino-http";
 import { randomUUID } from "crypto";
 import { ajv } from "@gpt5video/shared";
+import type { BrandProfile } from "@gpt5video/schemas";
 import {
   ensureTables,
   insertJob,
@@ -31,6 +32,10 @@ import {
   pool,
   getJobAttemptCount,
   sumEstimatedCostsForActiveJobs,
+  insertBrandProfile,
+  getNextBrandVersion,
+  getLatestBrandProfile,
+  getBrandProfileById,
 } from "./db";
 import {
   createS3Client,
@@ -124,12 +129,65 @@ app.post("/ingest/brand", (req: Request, res: Response) => {
       .status(400)
       .json({ error: "Invalid brand_profile", details: validateBrand.errors });
   }
-  req.log?.info?.({ run_id: (req as any).id }, "ingest.brand.received");
+  const data = req.body as BrandProfile;
+  const brandKey = String(data?.brand_id || "").trim() || "default";
+  const id = `brand_${Date.now()}`;
+  (async () => {
+    try {
+      const version = await getNextBrandVersion(brandKey);
+      await insertBrandProfile({ id, brandKey, version, data });
+    } catch (e) {
+      req.log?.warn?.(e as any, "brand.persist.failed");
+    }
+  })();
+  req.log?.info?.(
+    { run_id: (req as any).id, brand_key: brandKey },
+    "ingest.brand.received",
+  );
   res.json({
-    id: `brand_${Date.now()}`,
+    id,
+    brand_key: brandKey,
     run_id: (req as any).id || undefined,
-    data: req.body,
+    data,
   });
+});
+
+// Retrieve latest brand profile (optionally by brand_key)
+app.get("/ingest/brand/latest", async (req: Request, res: Response) => {
+  try {
+    const brandKey = String(req.query.brand_key || "").trim() || undefined;
+    const row = await getLatestBrandProfile(brandKey);
+    if (!row) return res.status(404).json({ error: "not_found" });
+    res.json({
+      id: row.id,
+      brand_key: row.brand_key,
+      version: row.version,
+      created_at: row.created_at,
+      data: row.data,
+    });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "brand_latest_failed" });
+  }
+});
+
+// Retrieve brand profile by id
+app.get("/ingest/brand/:id", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const row = await getBrandProfileById(id);
+    if (!row) return res.status(404).json({ error: "not_found" });
+    res.json({
+      id: row.id,
+      brand_key: row.brand_key,
+      version: row.version,
+      created_at: row.created_at,
+      data: row.data,
+    });
+  } catch (err) {
+    req.log?.error?.(err);
+    res.status(500).json({ error: "brand_get_failed" });
+  }
 });
 
 app.post("/hooks/mine", async (req: Request, res: Response) => {

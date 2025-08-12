@@ -28,6 +28,7 @@ Status legend: [ ] not started, [~] in progress, [x] done, [!] blocked
   - [x] Runtime validation helpers (ajv) in `packages/shared`
 - [~] Orchestrator API (minimal viable endpoints)
   - [x] POST `/ingest/brand` (schema validated)
+  - [x] Brand ingest persists to Postgres with versioning; added GET `/ingest/brand/latest` and `/ingest/brand/:id` (GUI loads latest on mount)
   - [x] POST `/hooks/mine` (stub returns) and `/hooks/synthesize` (stub)
   - [x] POST `/scenes/plan` (schema validated for array or single item)
   - [x] POST `/scenes/render` (Replicate call; response includes prediction_id, model_version, seed, duration; persisted)
@@ -52,7 +53,7 @@ Status legend: [ ] not started, [~] in progress, [x] done, [!] blocked
   - [x] Dashboard tiles + recent assets table (session) + nav links to Brand/Hooks
   - [x] Dashboard KPIs: In-progress, Failures (today), Avg render time (ms), Spend today (placeholder)
   - [x] Dashboard consumes SSE job events (minimal refresh)
-  - [x] Brand Ingest wizard with schema validation
+  - [x] Brand Ingest wizard with schema validation; persists to API and loads latest on mount; localStorage quick-save and "Load latest" action
   - [x] Hooks page placeholder
   - [x] Hooks UI minimal forms with JSON checks; show API stub responses
   - [x] Scenes Plan UI with schema validation (submit to `/scenes/plan`)
